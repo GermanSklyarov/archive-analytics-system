@@ -4,7 +4,7 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
-  OneToOne,
+  ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
@@ -13,12 +13,24 @@ export class AnalyticsResult {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => AnalyticsRequest)
+  @ManyToOne(() => AnalyticsRequest)
   @JoinColumn()
   request: AnalyticsRequest;
 
   @Column({ type: 'jsonb' })
-  result_data: any;
+  data: unknown;
+
+  @Column()
+  aggregationType: string;
+
+  @Column({ nullable: true })
+  userId?: number;
+
+  @Column({ nullable: true })
+  dateFrom?: string;
+
+  @Column({ nullable: true })
+  dateTo?: string;
 
   @CreateDateColumn()
   created_at: Date;

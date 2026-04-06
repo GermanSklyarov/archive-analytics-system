@@ -37,16 +37,26 @@ export class AnalyticsService {
     };
   }
 
-  async getByCategory(userId?: number) {
+  async getByCategory(userId?: number, dateFrom?: string, dateTo?: string) {
     const request = await this.logRequest({
       aggregationType: 'by-category',
       userId,
+      dateFrom,
+      dateTo,
     });
 
     const qb = this.archiveRepo.createQueryBuilder('record');
 
     if (userId) {
       qb.andWhere('record.user_id = :userId', { userId });
+    }
+
+    if (dateFrom) {
+      qb.andWhere('record.created_at >= :dateFrom', { dateFrom });
+    }
+
+    if (dateTo) {
+      qb.andWhere('record.created_at <= :dateTo', { dateTo });
     }
 
     const result = await qb
@@ -66,7 +76,7 @@ export class AnalyticsService {
       count: Number(item.count),
     }));
 
-    await this.resultsService.saveResult(request.id, response);
+    await this.resultsService.saveResult(request, response);
 
     return response;
   }
@@ -120,7 +130,7 @@ export class AnalyticsService {
       max: item.max ? Number(item.max) : 0,
     }));
 
-    await this.resultsService.saveResult(request.id, response);
+    await this.resultsService.saveResult(request, response);
 
     return response;
   }
@@ -169,7 +179,7 @@ export class AnalyticsService {
       max: result?.max ? Number(result.max) : 0,
     };
 
-    await this.resultsService.saveResult(request.id, response);
+    await this.resultsService.saveResult(request, response);
 
     return response;
   }

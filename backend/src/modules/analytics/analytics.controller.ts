@@ -24,8 +24,16 @@ export class AnalyticsController {
 
   @ApiOperation({ summary: 'Аналитика по категориям' })
   @Get('by-category')
-  async getByCategory(@Query('userId') userId?: number) {
-    const data = await this.analyticsService.getByCategory(userId);
+  async getByCategory(
+    @Query('userId') userId?: number,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const data = await this.analyticsService.getByCategory(
+      userId,
+      dateFrom,
+      dateTo,
+    );
 
     return plainToInstance(ByCategoryResponseDto, data, {
       excludeExtraneousValues: true,
