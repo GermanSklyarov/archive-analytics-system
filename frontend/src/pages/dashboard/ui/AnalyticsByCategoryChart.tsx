@@ -36,6 +36,14 @@ export const AnalyticsByCategoryChart = ({ data }: Props) => {
     );
   };
 
+  if (!data || data.length === 0) {
+    return (
+      <Typography variant="body1" align="center" sx={{ mt: 4 }}>
+        No data available for the selected filters
+      </Typography>
+    );
+  }
+
   return (
     <Card>
       <CardContent>
@@ -49,7 +57,9 @@ export const AnalyticsByCategoryChart = ({ data }: Props) => {
 
             <XAxis dataKey="category" />
             <YAxis />
-            <Tooltip formatter={(value, name) => [`${value}`, name]} />
+            <Tooltip
+              formatter={(value, name) => [value, `Category: ${name}`]}
+            />
 
             <Legend />
 

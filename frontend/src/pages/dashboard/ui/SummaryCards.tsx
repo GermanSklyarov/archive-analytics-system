@@ -22,7 +22,7 @@ export const SummaryCards = ({ summary }: Props) => (
       <Card>
         <CardContent>
           <Typography variant="h6">Total</Typography>
-          <Typography variant="h4">{summary?.sum ?? "-"}</Typography>
+          <Typography variant="h4">{summary?.sum?.toFixed(2) ?? "-"}</Typography>
         </CardContent>
       </Card>
     </Grid>

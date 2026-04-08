@@ -1,5 +1,5 @@
 import { Card, CardContent, Typography } from "@mui/material";
-import { useNavigate } from "react-admin";
+import { useNavigate } from "react-router-dom";
 import {
   CartesianGrid,
   Line,
@@ -43,6 +43,14 @@ export const AnalyticsChart = ({ data }: Props) => {
     );
   };
 
+  if (!data || data.length === 0) {
+    return (
+      <Typography variant="body1" align="center" sx={{ mt: 4 }}>
+        No data available for the selected filters
+      </Typography>
+    );
+  }
+
   return (
     <Card>
       <CardContent>
@@ -69,6 +77,7 @@ export const AnalyticsChart = ({ data }: Props) => {
                 onClick: handleClick,
               }}
             />
+            <Line dataKey="count" />
           </LineChart>
         </ResponsiveContainer>
       </CardContent>

@@ -1,11 +1,13 @@
 import type { DataProvider } from "react-admin";
+import { http } from "./ http";
 
 const API_URL = "/api";
 
 export const dataProvider: DataProvider = {
   getList: async (resource, params) => {
-    const { page, perPage } = params.pagination;
-    const { field, order } = params.sort;
+    const { page = 1, perPage = 10 } = params.pagination ?? {};
+    const { field = "id", order = "ASC" } = params.sort ?? {};
+    const filter = params.filter ?? {};
 
     const query = new URLSearchParams({
       page: String(page),
@@ -14,18 +16,24 @@ export const dataProvider: DataProvider = {
       order: order,
     });
 
-    Object.entries(params.filter).forEach(([key, value]) => {
+    Object.entries(filter).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") {
         query.append(key, String(value));
       }
     });
 
-    const res = await fetch(`${API_URL}/${resource}?${query}`);
-    const json = await res.json();
+    const res = await http(`${API_URL}/${resource}?${query}`);
+
+    if (Array.isArray(res)) {
+      return {
+        data: res,
+        total: res.length,
+      };
+    }
 
     return {
-      data: json.data ?? json,
-      total: json.total ?? json.length ?? 0,
+      data: res.data ?? [],
+      total: res.total ?? 0,
     };
   },
 
@@ -33,33 +41,54 @@ export const dataProvider: DataProvider = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/archive-records/import", {
+    const json = await http(`${API_URL}/archive-records/import`, {
       method: "POST",
       body: formData,
     });
 
-    if (!response.ok) {
-      throw new Error("Import failed");
-    }
-
-    return response.json();
+    return json;
   },
 
-getOne: async (resource, params) => {
-  const response = await fetch(`${API_URL}/${resource}/${params.id}`);
-  const json = await response.json();
+  getOne: async (resource, params) => {
+    const json = await http(`${API_URL}/${resource}/${params.id}`);
 
-  return {
-    data: json,
-  };
-},
+    return {
+      data: json,
+    };
+  },
+
+  getMany: async (resource, params) => {
+    const res = await fetch(
+      `${API_URL}/${resource}?ids=${params.ids.join(",")}`,
+    );
+    const json = await res.json();
+
+    return { data: json.data ?? json };
+  },
 
   // пока заглушки
-  getMany: async () => ({ data: [] }),
   getManyReference: async () => ({ data: [], total: 0 }),
   update: async () => ({ data: {} }),
   updateMany: async () => ({ data: [] }),
   create: async () => ({ data: {} }),
-  delete: async () => ({ data: {} }),
-  deleteMany: async () => ({ data: [] }),
+
+  delete: async (resource, params) => {
+    const response = await fetch(`/api/${resource}/${params.id}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+
+    return { data };
+  },
+
+  deleteMany: async (resource, params) => {
+    await http(`/api/${resource}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: params.ids }),
+    });
+
+    return { data: params.ids };
+  },
 };

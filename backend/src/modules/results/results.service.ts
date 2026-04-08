@@ -1,8 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AnalyticsResult } from './entities/result.entity';
-import { Injectable } from '@nestjs/common';
 import { AnalyticsRequest } from '../analytics/entities/analytics.entity';
+import { GetResultsQueryDto } from './dto';
+import { AnalyticsResult } from './entities/result.entity';
 
 @Injectable()
 export class ResultsService {
@@ -24,8 +25,27 @@ export class ResultsService {
     return this.resultRepo.save(result);
   }
 
-  findAll() {
-    return this.resultRepo.find({ relations: ['request'] });
+  async findAll(query: GetResultsQueryDto) {
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'created_at',
+      order = 'DESC',
+    } = query;
+
+    const [data, total] = await this.resultRepo.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { [sortBy]: order },
+      where: {
+        ...(query.userId && { userId: query.userId }),
+        ...(query.aggregationType && {
+          aggregationType: query.aggregationType,
+        }),
+      },
+    });
+
+    return { data, total };
   }
 
   findOne(id: number) {
@@ -42,5 +62,10 @@ export class ResultsService {
       },
       relations: ['request'],
     });
+  }
+
+  async removeMany(ids: number[]) {
+    await this.resultRepo.delete(ids);
+    return { ids };
   }
 }

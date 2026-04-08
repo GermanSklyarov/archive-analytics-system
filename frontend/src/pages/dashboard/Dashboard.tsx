@@ -1,4 +1,12 @@
-import { Box, Button, TextField, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  MenuItem,
+  Select,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useEffect, useState } from "react";
 
 import { SummaryCards } from "./ui/SummaryCards";
@@ -10,7 +18,9 @@ import {
 } from "./model/api";
 
 import { useLocation, useNavigate } from "react-router-dom";
+import { dataProvider } from "../../api/dataProvider";
 import { ImportButton } from "../../components/ImportButton";
+import type { User } from "../../types/user";
 import type {
   CategoryDataPoint,
   DashboardFilters,
@@ -24,6 +34,8 @@ export const Dashboard = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [data, setData] = useState<DataPoint[]>([]);
   const [categoryData, setCategoryData] = useState<CategoryDataPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -46,6 +58,33 @@ export const Dashboard = () => {
       return {};
     }
   };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [summaryRes, dateData, categoryRes] = await Promise.all([
+        getSummary(filters),
+        getAnalyticsByDate(filters),
+        getAnalyticsByCategory(filters),
+      ]);
+
+      setSummary(summaryRes);
+      setData(dateData);
+      setCategoryData(categoryRes);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    dataProvider
+      .getList<User>("users", {
+        pagination: { page: 1, perPage: 100 },
+        sort: { field: "id", order: "ASC" },
+        filter: {},
+      })
+      .then(({ data }) => setUsers(data));
+  }, []);
 
   const [filters, setFilters] = useState<DashboardFilters>(getInitialFilters());
 
@@ -80,9 +119,7 @@ export const Dashboard = () => {
   }, [location.search]);
 
   useEffect(() => {
-    getSummary(filters).then(setSummary);
-    getAnalyticsByDate(filters).then(setData);
-    getAnalyticsByCategory(filters).then(setCategoryData);
+    loadData();
   }, [filters]);
 
   return (
@@ -110,9 +147,7 @@ export const Dashboard = () => {
           onChange={(e) => handleChange("dateTo", e.target.value)}
         />
 
-        <TextField
-          label="User ID"
-          type="number"
+        <Select
           value={filters.userId || ""}
           onChange={(e) =>
             handleChange(
@@ -120,18 +155,29 @@ export const Dashboard = () => {
               e.target.value ? Number(e.target.value) : undefined,
             )
           }
-        />
+        >
+          <MenuItem value="">All users</MenuItem>
+          {users.map((u) => (
+            <MenuItem key={u.id} value={u.id}>
+              {u.name}
+            </MenuItem>
+          ))}
+        </Select>
 
         <Button variant="outlined" onClick={() => setFilters({})}>
           Reset
         </Button>
       </Box>
 
-      <SummaryCards summary={summary} />
-
-      <AnalyticsChart data={data} />
-
-      <AnalyticsByCategoryChart data={categoryData} />
+      {loading ? (
+        <CircularProgress />
+      ) : (
+        <>
+          <SummaryCards summary={summary} />
+          <AnalyticsChart data={data} />
+          <AnalyticsByCategoryChart data={categoryData} />
+        </>
+      )}
 
       <Button onClick={() => navigate("/results")}>View Results History</Button>
     </div>

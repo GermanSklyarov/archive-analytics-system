@@ -33,6 +33,12 @@ export class ArchiveRecordsController {
     return this.archiveRecordsService.importFromFile(file);
   }
 
+  @Post('preview')
+  @UseInterceptors(FileInterceptor('file'))
+  preview(@UploadedFile() file: Express.Multer.File) {
+    return this.archiveRecordsService.previewImport(file);
+  }
+
   @Get()
   findAll(@Query() query: QueryArchiveRecordsDto) {
     return this.archiveRecordsService.findAll(query);
@@ -49,6 +55,11 @@ export class ArchiveRecordsController {
     @Body() updateArchiveRecordDto: UpdateArchiveRecordDto,
   ) {
     return this.archiveRecordsService.update(+id, updateArchiveRecordDto);
+  }
+
+  @Delete()
+  removeMany(@Body() body: { ids: number[] }) {
+    return this.archiveRecordsService.removeMany(body.ids);
   }
 
   @Delete(':id')

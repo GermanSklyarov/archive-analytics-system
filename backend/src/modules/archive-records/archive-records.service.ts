@@ -1,35 +1,34 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import * as XLSX from 'xlsx';
+import { User } from '../users/entities/user.entity';
 import {
   CreateArchiveRecordDto,
   QueryArchiveRecordsDto,
   UpdateArchiveRecordDto,
 } from './dto';
 import { ArchiveRecord } from './entities/archive-record.entity';
-import * as XLSX from 'xlsx';
+import {
+  parseDate,
+  parseMetadata,
+  parseNumber,
+  parseString,
+} from './import/parsers';
+import {
+  ParsedRecord,
+  PreviewRecord,
+  PreviewRow,
+  RawRow,
+} from './import/types';
 
-type ImportRow = {
-  category: string;
-  value: number | string;
-  userId?: number;
-  created_at?: string | Date;
-};
-
-function parseDate(input: string | number | Date | undefined): Date {
-  if (!input) return new Date();
-
-  if (typeof input === 'number') {
-    return new Date((input - 25569) * 86400 * 1000);
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
   }
 
-  if (input instanceof Date) {
-    return input;
-  }
-
-  const date = new Date(input);
-  return isNaN(date.getTime()) ? new Date() : date;
+  return String(error);
 }
 
 @Injectable()
@@ -53,43 +52,78 @@ export class ArchiveRecordsService {
     }
 
     const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-
-    const rawData = XLSX.utils.sheet_to_json(sheet);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json<RawRow>(sheet);
 
     if (!rawData.length) {
       throw new BadRequestException('Empty file');
     }
 
-    const records = (rawData as ImportRow[]).map((row, index) => {
-      if (!row.category || row.value === undefined) {
-        throw new BadRequestException(
-          `Invalid row at index ${index}: category and value are required`,
-        );
+    const parsedRecords: ParsedRecord[] = [];
+    const errors: string[] = [];
+
+    rawData.forEach((row, index) => {
+      try {
+        const { category, value, userId, created_at, ...rest } = row;
+
+        if (!category || value === undefined) {
+          throw new Error('category and value are required');
+        }
+
+        parsedRecords.push({
+          category: parseString(category, 'category', index),
+          value: parseNumber(value, index),
+          userId:
+            userId !== undefined && userId !== null
+              ? Number(userId)
+              : undefined,
+          created_at: parseDate(created_at),
+          metadata: parseMetadata(rest, index),
+        });
+      } catch (e: unknown) {
+        errors.push(`Row ${index}: ${getErrorMessage(e)}`);
       }
-
-      const value = Number(row.value);
-
-      if (isNaN(value)) {
-        throw new BadRequestException(
-          `Invalid value at row ${index}: "${row.value}" is not a number`,
-        );
-      }
-
-      return {
-        category: row.category,
-        value,
-        user: row.userId ? { id: row.userId } : undefined,
-        created_at: parseDate(row.created_at),
-      };
     });
 
-    const uniqueMap = new Map<string, (typeof records)[0]>();
+    const userIds = Array.from(
+      new Set(
+        parsedRecords
+          .map((r) => r.userId)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    );
 
-    for (const record of records) {
-      const key = `${record.category}_${record.value}_${record.created_at.toISOString()}_${record.user?.id ?? 'null'}`;
+    let existingUserIds = new Set<number>();
+
+    if (userIds.length) {
+      const existingUsers = await this.archiveRepo.manager
+        .getRepository(User)
+        .findBy({ id: In(userIds) });
+
+      existingUserIds = new Set(existingUsers.map((u) => u.id));
+    }
+
+    const validRecords: ParsedRecord[] = [];
+
+    parsedRecords.forEach((record, index) => {
+      if (record.userId && !existingUserIds.has(record.userId)) {
+        errors.push(`Row ${index}: user ${record.userId} not found`);
+        return;
+      }
+
+      validRecords.push(record);
+    });
+
+    const uniqueMap = new Map<string, ParsedRecord>();
+
+    for (const record of validRecords) {
+      const key = JSON.stringify({
+        category: record.category,
+        value: record.value,
+        created_at: record.created_at.toISOString(),
+        userId: record.userId ?? null,
+        metadata: record.metadata ?? null,
+      });
 
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, record);
@@ -107,7 +141,15 @@ export class ArchiveRecordsService {
       const result = await this.archiveRepo
         .createQueryBuilder()
         .insert()
-        .values(chunk)
+        .values(
+          chunk.map((r) => ({
+            category: r.category,
+            value: r.value,
+            created_at: r.created_at,
+            metadata: r.metadata,
+            user: r.userId ? { id: r.userId } : undefined,
+          })),
+        )
         .orIgnore()
         .execute();
 
@@ -115,10 +157,92 @@ export class ArchiveRecordsService {
     }
 
     return {
-      total: records.length,
-      unique: uniqueRecords.length,
+      total: rawData.length,
+      parsed: parsedRecords.length,
+      valid: validRecords.length,
       inserted,
-      skipped: uniqueRecords.length - inserted,
+      skipped: rawData.length - inserted,
+      invalid: errors.length,
+      errors: errors.slice(0, 20),
+    };
+  }
+
+  async previewImport(file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json<RawRow>(sheet);
+
+    const preview: PreviewRow[] = [];
+    const errors: string[] = [];
+
+    const userIds = Array.from(
+      new Set(
+        rawData
+          .map((row) => row.userId)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    );
+
+    const existingUsers = await this.archiveRepo.manager
+      .getRepository(User)
+      .findBy({ id: In(userIds) });
+
+    const existingUserIds = new Set(existingUsers.map((u) => u.id));
+
+    rawData.forEach((row, index) => {
+      const rowErrors: string[] = [];
+
+      try {
+        const { category, value, userId, created_at, ...rest } = row;
+
+        const parsedUserId = userId !== undefined ? Number(userId) : undefined;
+
+        if (parsedUserId && !existingUserIds.has(parsedUserId)) {
+          rowErrors.push(`User ${parsedUserId} not found`);
+        }
+
+        const parsed: Partial<PreviewRecord> = {
+          category: parseString(category, 'category', index),
+          value: parseNumber(value, index),
+          userId: parsedUserId,
+          created_at: parseDate(created_at),
+          metadata: parseMetadata(rest, index),
+        };
+
+        preview.push({
+          index,
+          data: parsed,
+          isValid: rowErrors.length === 0,
+          errors: rowErrors,
+        });
+
+        if (rowErrors.length) {
+          errors.push(`Row ${index}: ${rowErrors.join(', ')}`);
+        }
+      } catch (e: unknown) {
+        const message = getErrorMessage(e);
+
+        preview.push({
+          index,
+          data: {},
+          isValid: false,
+          errors: [message],
+        });
+
+        errors.push(`Row ${index}: ${message}`);
+      }
+    });
+
+    return {
+      total: rawData.length,
+      valid: preview.filter((r) => r.isValid).length,
+      invalid: preview.filter((r) => !r.isValid).length,
+      errors: errors.slice(0, 20),
+      preview: preview.slice(0, 50),
     };
   }
 
@@ -203,5 +327,10 @@ export class ArchiveRecordsService {
   async remove(id: number) {
     await this.archiveRepo.delete(id);
     return { deleted: true };
+  }
+
+  async removeMany(ids: number[]) {
+    await this.archiveRepo.delete(ids);
+    return { ids };
   }
 }

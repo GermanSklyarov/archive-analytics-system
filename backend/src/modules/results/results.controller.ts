@@ -1,4 +1,5 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Query } from '@nestjs/common';
+import { GetResultsQueryDto } from './dto';
 import { ResultsService } from './results.service';
 
 @Controller('results')
@@ -6,8 +7,8 @@ export class ResultsController {
   constructor(private readonly resultsService: ResultsService) {}
 
   @Get()
-  findAll() {
-    return this.resultsService.findAll();
+  findAll(@Query() query: GetResultsQueryDto) {
+    return this.resultsService.findAll(query);
   }
 
   @Get(':id')
@@ -18,5 +19,10 @@ export class ResultsController {
   @Get('by-request/:requestId')
   findByRequest(@Param('requestId') requestId: string) {
     return this.resultsService.findByRequest(+requestId);
+  }
+
+  @Delete()
+  removeMany(@Body() body: { ids: number[] }) {
+    return this.resultsService.removeMany(body.ids);
   }
 }
