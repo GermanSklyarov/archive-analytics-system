@@ -6,19 +6,41 @@ export type PreviewRecord = {
   metadata?: Record<string, unknown>;
 };
 
-export type PreviewRow = {
+export type MappedPreviewRecord = {
+  category?: string;
+  value?: number;
+  userId?: number;
+  created_at?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type RawPreviewRow = {
   index: number;
-  data: Partial<PreviewRecord>;
+  raw: Record<string, unknown>;
+  isValid: boolean;
+  errors: string[];
+};
+
+export type MappedPreviewRow = {
+  index: number;
+  data: MappedPreviewRecord | null;
   isValid: boolean;
   errors: string[];
 };
 
 export type PreviewResponse = {
   total: number;
+  preview: RawPreviewRow[];
+  columns: string[];
+  mapping: ColumnMapping;
+};
+
+export type PreviewWithMappingResponse = {
+  total: number;
   valid: number;
   invalid: number;
   errors: string[];
-  preview: PreviewRow[];
+  preview: MappedPreviewRow[];
 };
 
 export type ImportResponse = {
@@ -29,4 +51,10 @@ export type ImportResponse = {
   skipped: number;
   invalid: number;
   errors: string[];
+};
+
+export type ColumnMapping = {
+  value?: string;
+  category?: string;
+  created_at?: string;
 };

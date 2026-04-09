@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import * as XLSX from 'xlsx';
-import { User } from '../users/entities/user.entity';
 import {
   CreateArchiveRecordDto,
   QueryArchiveRecordsDto,
@@ -17,8 +16,9 @@ import {
   parseString,
 } from './import/parsers';
 import {
-  ParsedRecord,
-  PreviewRecord,
+  ColumnMapping,
+  NormalizedRecord,
+  PreviewImportResponse,
   PreviewRow,
   RawRow,
 } from './import/types';
@@ -46,7 +46,11 @@ export class ArchiveRecordsService {
     return this.archiveRepo.save(record);
   }
 
-  async importFromFile(file: Express.Multer.File) {
+  async importFromFile(
+    file: Express.Multer.File,
+    mapping: ColumnMapping,
+    currentUserId: number,
+  ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -59,62 +63,47 @@ export class ArchiveRecordsService {
       throw new BadRequestException('Empty file');
     }
 
-    const parsedRecords: ParsedRecord[] = [];
+    const parsedRecords: NormalizedRecord[] = [];
     const errors: string[] = [];
 
     rawData.forEach((row, index) => {
       try {
-        const { category, value, userId, created_at, ...rest } = row;
+        const valueRaw = mapping.value ? row[mapping.value] : undefined;
+        const categoryRaw = mapping.category
+          ? row[mapping.category]
+          : undefined;
+        const createdAtRaw = mapping.created_at
+          ? row[mapping.created_at]
+          : undefined;
 
-        if (!category || value === undefined) {
+        const metadata = { ...row };
+
+        if (mapping.value) delete metadata[mapping.value];
+        if (mapping.category) delete metadata[mapping.category];
+        if (mapping.created_at) delete metadata[mapping.created_at];
+
+        if (categoryRaw == null || valueRaw == null) {
           throw new Error('category and value are required');
         }
 
         parsedRecords.push({
-          category: parseString(category, 'category', index),
-          value: parseNumber(value, index),
-          userId:
-            userId !== undefined && userId !== null
-              ? Number(userId)
-              : undefined,
-          created_at: parseDate(created_at),
-          metadata: parseMetadata(rest, index),
+          category: parseString(categoryRaw, 'category', index),
+          value: parseNumber(valueRaw, index),
+
+          userId: currentUserId,
+
+          created_at: createdAtRaw ? parseDate(createdAtRaw) : new Date(),
+
+          metadata: parseMetadata(metadata, index),
         });
       } catch (e: unknown) {
         errors.push(`Row ${index}: ${getErrorMessage(e)}`);
       }
     });
 
-    const userIds = Array.from(
-      new Set(
-        parsedRecords
-          .map((r) => r.userId)
-          .filter((id): id is number => typeof id === 'number'),
-      ),
-    );
+    const validRecords = parsedRecords;
 
-    let existingUserIds = new Set<number>();
-
-    if (userIds.length) {
-      const existingUsers = await this.archiveRepo.manager
-        .getRepository(User)
-        .findBy({ id: In(userIds) });
-
-      existingUserIds = new Set(existingUsers.map((u) => u.id));
-    }
-
-    const validRecords: ParsedRecord[] = [];
-
-    parsedRecords.forEach((record, index) => {
-      if (record.userId && !existingUserIds.has(record.userId)) {
-        errors.push(`Row ${index}: user ${record.userId} not found`);
-        return;
-      }
-
-      validRecords.push(record);
-    });
-
-    const uniqueMap = new Map<string, ParsedRecord>();
+    const uniqueMap = new Map<string, NormalizedRecord>();
 
     for (const record of validRecords) {
       const key = JSON.stringify({
@@ -146,8 +135,8 @@ export class ArchiveRecordsService {
             category: r.category,
             value: r.value,
             created_at: r.created_at,
-            metadata: r.metadata,
-            user: r.userId ? { id: r.userId } : undefined,
+            metadata: r.metadata as Record<string, any>,
+            user: { id: currentUserId },
           })),
         )
         .orIgnore()
@@ -167,7 +156,36 @@ export class ArchiveRecordsService {
     };
   }
 
-  async previewImport(file: Express.Multer.File) {
+  previewImport(file: Express.Multer.File): PreviewImportResponse {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json<RawRow>(sheet);
+
+    if (!rawData.length) {
+      throw new BadRequestException('Empty file');
+    }
+
+    const columns = Object.keys(rawData[0] ?? {});
+    const mapping = this.autoDetectMapping(columns);
+
+    return {
+      total: rawData.length,
+      preview: rawData.slice(0, 50).map((row, index) => ({
+        index,
+        raw: row,
+        isValid: true,
+        errors: [],
+      })),
+      columns,
+      mapping,
+    };
+  }
+
+  previewWithMapping(file: Express.Multer.File, mapping: ColumnMapping) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -179,38 +197,36 @@ export class ArchiveRecordsService {
     const preview: PreviewRow[] = [];
     const errors: string[] = [];
 
-    const userIds = Array.from(
-      new Set(
-        rawData
-          .map((row) => row.userId)
-          .filter((id): id is number => typeof id === 'number'),
-      ),
-    );
-
-    const existingUsers = await this.archiveRepo.manager
-      .getRepository(User)
-      .findBy({ id: In(userIds) });
-
-    const existingUserIds = new Set(existingUsers.map((u) => u.id));
-
     rawData.forEach((row, index) => {
       const rowErrors: string[] = [];
 
       try {
-        const { category, value, userId, created_at, ...rest } = row;
+        const valueRaw = mapping.value ? row[mapping.value] : undefined;
+        const categoryRaw = mapping.category
+          ? row[mapping.category]
+          : undefined;
+        const createdAtRaw = mapping.created_at
+          ? row[mapping.created_at]
+          : undefined;
 
-        const parsedUserId = userId !== undefined ? Number(userId) : undefined;
+        const metadata = { ...row };
 
-        if (parsedUserId && !existingUserIds.has(parsedUserId)) {
-          rowErrors.push(`User ${parsedUserId} not found`);
+        if (mapping.value) delete metadata[mapping.value];
+        if (mapping.category) delete metadata[mapping.category];
+        if (mapping.created_at) delete metadata[mapping.created_at];
+
+        if (!categoryRaw || valueRaw === undefined) {
+          rowErrors.push('category and value are required');
         }
 
-        const parsed: Partial<PreviewRecord> = {
-          category: parseString(category, 'category', index),
-          value: parseNumber(value, index),
-          userId: parsedUserId,
-          created_at: parseDate(created_at),
-          metadata: parseMetadata(rest, index),
+        const parsed: Partial<NormalizedRecord> = {
+          category: categoryRaw
+            ? parseString(categoryRaw, 'category', index)
+            : undefined,
+          value:
+            valueRaw !== undefined ? parseNumber(valueRaw, index) : undefined,
+          created_at: createdAtRaw ? parseDate(createdAtRaw) : new Date(),
+          metadata: parseMetadata(metadata, index),
         };
 
         preview.push({
@@ -243,6 +259,19 @@ export class ArchiveRecordsService {
       invalid: preview.filter((r) => !r.isValid).length,
       errors: errors.slice(0, 20),
       preview: preview.slice(0, 50),
+    };
+  }
+
+  private autoDetectMapping(columns: string[]): ColumnMapping {
+    const normalize = (str: string) => str.toLowerCase();
+
+    const find = (candidates: string[]) =>
+      columns.find((col) => candidates.some((c) => normalize(col).includes(c)));
+
+    return {
+      value: find(['value', 'amount', 'price', 'sum']) || '',
+      category: find(['category', 'type', 'group', 'name']) || '',
+      created_at: find(['date', 'created', 'time']) || '',
     };
   }
 

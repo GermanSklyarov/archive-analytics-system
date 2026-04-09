@@ -7,16 +7,19 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { ArchiveRecordsService } from './archive-records.service';
 import {
   CreateArchiveRecordDto,
   QueryArchiveRecordsDto,
   UpdateArchiveRecordDto,
 } from './dto';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { parseMapping } from './import/parsers';
 
 @Controller('archive-records')
 export class ArchiveRecordsController {
@@ -29,14 +32,35 @@ export class ArchiveRecordsController {
 
   @Post('import')
   @UseInterceptors(FileInterceptor('file'))
-  async importFile(@UploadedFile() file: Express.Multer.File) {
-    return this.archiveRecordsService.importFromFile(file);
+  async import(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('mapping') mappingRaw: string,
+    @Req() req: Request & { user: { id: number } },
+  ) {
+    const mapping = mappingRaw ? parseMapping(mappingRaw) : {};
+
+    return this.archiveRecordsService.importFromFile(
+      file,
+      mapping,
+      req.user?.id ?? 1,
+    );
   }
 
   @Post('preview')
   @UseInterceptors(FileInterceptor('file'))
   preview(@UploadedFile() file: Express.Multer.File) {
     return this.archiveRecordsService.previewImport(file);
+  }
+
+  @Post('preview-with-mapping')
+  @UseInterceptors(FileInterceptor('file'))
+  previewWithMapping(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('mapping') mappingRaw: string,
+  ) {
+    const mapping = mappingRaw ? parseMapping(mappingRaw) : {};
+
+    return this.archiveRecordsService.previewWithMapping(file, mapping);
   }
 
   @Get()

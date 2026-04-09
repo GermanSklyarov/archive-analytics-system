@@ -14,13 +14,13 @@ import {
 import { Fragment, useMemo, useState } from "react";
 
 import JsonView from "@uiw/react-json-view";
-import type { PreviewRow } from "../model/types";
+import type { MappedPreviewRow } from "../model/types";
 
 type Props = {
-  data: PreviewRow[];
+  data: MappedPreviewRow[];
 };
 
-export function PreviewTable({ data }: Props) {
+export function MappedPreviewTable({ data }: Props) {
   const [onlyErrors, setOnlyErrors] = useState(false);
 
   const rows = useMemo(() => {
@@ -68,7 +68,8 @@ export function PreviewTable({ data }: Props) {
                 <TableRow
                   hover
                   sx={{
-                    bgcolor: row.isValid ? "inherit" : "rgba(255, 0, 0, 0.06)",
+                    bgcolor:
+                      !row.isValid || !d ? "rgba(255, 0, 0, 0.06)" : "inherit",
                   }}
                 >
                   <TableCell>
@@ -80,17 +81,17 @@ export function PreviewTable({ data }: Props) {
                   </TableCell>
 
                   <TableCell>
-                    {d.category ? (
+                    {d?.category ? (
                       <Chip label={d.category} size="small" />
                     ) : (
                       "-"
                     )}
                   </TableCell>
 
-                  <TableCell>{d.value ?? "-"}</TableCell>
+                  <TableCell>{d?.value ?? "-"}</TableCell>
 
                   <TableCell>
-                    {d.userId ? (
+                    {d?.userId ? (
                       <Chip label={`#${d.userId}`} size="small" />
                     ) : (
                       "-"
@@ -98,13 +99,13 @@ export function PreviewTable({ data }: Props) {
                   </TableCell>
 
                   <TableCell>
-                    {d.created_at
+                    {d?.created_at
                       ? new Date(d.created_at).toLocaleString()
                       : "-"}
                   </TableCell>
 
                   <TableCell>
-                    {d.metadata ? (
+                    {d?.metadata ? (
                       <Box
                         sx={{
                           pl: 1.5,
@@ -134,7 +135,7 @@ export function PreviewTable({ data }: Props) {
                   <TableRow>
                     <TableCell colSpan={6}>
                       <Typography variant="body2" color="error" sx={{ pl: 2 }}>
-                        {row.errors.join(", ")}
+                        {row.errors?.join(", ") || "Unknown error"}
                       </Typography>
                     </TableCell>
                   </TableRow>

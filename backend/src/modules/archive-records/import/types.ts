@@ -1,19 +1,13 @@
-export type RawRow = {
-  category?: unknown;
-  value?: unknown;
-  userId?: unknown;
-  created_at?: unknown;
-} & Record<string, unknown>;
+export type RawRow = Record<string, unknown>;
 
-export type ParsedRecord = {
-  category: string;
-  value: number;
-  userId?: number;
-  created_at: Date;
-  metadata?: Record<string, any>;
+export type RawPreviewRow = {
+  index: number;
+  raw: RawRow;
+  isValid: boolean;
+  errors: string[];
 };
 
-export type PreviewRecord = {
+export type NormalizedRecord = {
   category: string;
   value: number;
   userId?: number;
@@ -23,7 +17,26 @@ export type PreviewRecord = {
 
 export type PreviewRow = {
   index: number;
-  data: Partial<PreviewRecord>;
+  data: Partial<NormalizedRecord>;
   isValid: boolean;
   errors: string[];
+};
+
+export type ColumnMapping = {
+  value?: string;
+  category?: string;
+  created_at?: string;
+};
+
+export type RequiredColumnMapping = {
+  value: string;
+  category: string;
+  created_at: string;
+};
+
+export type PreviewImportResponse = {
+  total: number;
+  preview: RawPreviewRow[];
+  columns: string[];
+  mapping: ColumnMapping;
 };
