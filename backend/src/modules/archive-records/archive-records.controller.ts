@@ -68,6 +68,11 @@ export class ArchiveRecordsController {
     return this.archiveRecordsService.findAll(query);
   }
 
+  @Get('meta')
+  getMeta(@Req() req: Request & { user: { id: number } }) {
+    return this.archiveRecordsService.getMeta(req.user?.id ?? 1);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.archiveRecordsService.findOne(+id);

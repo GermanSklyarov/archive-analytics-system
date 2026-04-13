@@ -1,9 +1,9 @@
 import {
+  IsDateString,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
-  IsDateString,
-  IsIn,
 } from 'class-validator';
 
 export class QueryArchiveRecordsDto {
@@ -46,4 +46,12 @@ export class QueryArchiveRecordsDto {
   @IsOptional()
   @IsDateString()
   dateTo?: string;
+
+  @IsOptional()
+  @IsString()
+  tag?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
 }

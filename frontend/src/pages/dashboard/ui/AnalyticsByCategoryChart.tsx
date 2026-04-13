@@ -11,17 +11,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { CategoryDataPoint } from "../model/types";
+import type { CategoryDataPoint, DashboardFilters } from "../model/types";
 
 type Props = {
   data: CategoryDataPoint[];
+  filters: DashboardFilters;
 };
 
 type BarPayload = RectangleProps & {
   payload?: CategoryDataPoint;
 };
 
-export const AnalyticsByCategoryChart = ({ data }: Props) => {
+export const AnalyticsByCategoryChart = ({ data, filters }: Props) => {
   const navigate = useNavigate();
 
   const handleClick = (data: BarPayload) => {
@@ -31,7 +32,10 @@ export const AnalyticsByCategoryChart = ({ data }: Props) => {
 
     navigate(
       `/archive-records?filter=${encodeURIComponent(
-        JSON.stringify({ category }),
+        JSON.stringify({
+          ...filters,
+          category,
+        }),
       )}`,
     );
   };
@@ -58,7 +62,10 @@ export const AnalyticsByCategoryChart = ({ data }: Props) => {
             <XAxis dataKey="category" />
             <YAxis />
             <Tooltip
-              formatter={(value, name) => [value, `Category: ${name}`]}
+              formatter={(value, name, props) => [
+                value,
+                `${props.payload.category} (${name})`,
+              ]}
             />
 
             <Legend />

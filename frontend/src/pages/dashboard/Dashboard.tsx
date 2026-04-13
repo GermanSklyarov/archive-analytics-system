@@ -1,12 +1,4 @@
-import {
-  Box,
-  Button,
-  CircularProgress,
-  MenuItem,
-  Select,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Button, CircularProgress, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 
 import { SummaryCards } from "./ui/SummaryCards";
@@ -21,6 +13,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { dataProvider } from "../../api/dataProvider";
 import { ImportButton } from "../../components/ImportButton";
 import type { User } from "../../types/user";
+
+import { useArchiveMeta } from "../../hooks/useArchiveMeta";
 import type {
   CategoryDataPoint,
   DashboardFilters,
@@ -29,6 +23,7 @@ import type {
 } from "./model/types";
 import { AnalyticsByCategoryChart } from "./ui/AnalyticsByCategoryChart";
 import { AnalyticsChart } from "./ui/AnalyticsChart";
+import { DashboardFiltersBar } from "./ui/DashboardFiltersBar";
 
 export const Dashboard = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -38,6 +33,7 @@ export const Dashboard = () => {
   const [users, setUsers] = useState<User[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
+  const { data: meta } = useArchiveMeta();
 
   const handleChange = (key: keyof DashboardFilters, value: unknown) => {
     setFilters((prev) => ({
@@ -130,52 +126,21 @@ export const Dashboard = () => {
 
       <ImportButton />
 
-      <Box display="flex" gap={2} mb={2}>
-        <TextField
-          label="Date from"
-          type="date"
-          InputLabelProps={{ shrink: true }}
-          value={filters.dateFrom || ""}
-          onChange={(e) => handleChange("dateFrom", e.target.value)}
-        />
-
-        <TextField
-          label="Date to"
-          type="date"
-          InputLabelProps={{ shrink: true }}
-          value={filters.dateTo || ""}
-          onChange={(e) => handleChange("dateTo", e.target.value)}
-        />
-
-        <Select
-          value={filters.userId || ""}
-          onChange={(e) =>
-            handleChange(
-              "userId",
-              e.target.value ? Number(e.target.value) : undefined,
-            )
-          }
-        >
-          <MenuItem value="">All users</MenuItem>
-          {users.map((u) => (
-            <MenuItem key={u.id} value={u.id}>
-              {u.name}
-            </MenuItem>
-          ))}
-        </Select>
-
-        <Button variant="outlined" onClick={() => setFilters({})}>
-          Reset
-        </Button>
-      </Box>
+      <DashboardFiltersBar
+        filters={filters}
+        users={users}
+        meta={meta}
+        onChange={handleChange}
+        onReset={() => setFilters({})}
+      />
 
       {loading ? (
         <CircularProgress />
       ) : (
         <>
           <SummaryCards summary={summary} />
-          <AnalyticsChart data={data} />
-          <AnalyticsByCategoryChart data={categoryData} />
+          <AnalyticsChart data={data} filters={filters} />
+          <AnalyticsByCategoryChart data={categoryData} filters={filters} />
         </>
       )}
 

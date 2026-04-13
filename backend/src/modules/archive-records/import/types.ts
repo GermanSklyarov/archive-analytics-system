@@ -8,10 +8,13 @@ export type RawPreviewRow = {
 };
 
 export type NormalizedRecord = {
+  tag: string;
   category: string;
   value: number;
-  userId?: number;
   created_at: Date;
+
+  unit?: string;
+  userId?: number;
   metadata?: Record<string, unknown>;
 };
 
@@ -26,6 +29,12 @@ export type ColumnMapping = {
   value?: string;
   category?: string;
   created_at?: string;
+
+  tag?: string;
+  unit?: string;
+
+  manualTag?: string;
+  manualUnit?: string;
 };
 
 export type RequiredColumnMapping = {
@@ -39,4 +48,14 @@ export type PreviewImportResponse = {
   preview: RawPreviewRow[];
   columns: string[];
   mapping: ColumnMapping;
+};
+
+export type TagRow = {
+  tag: string;
+  count: string;
+};
+
+export type UnitRow = {
+  unit: string;
+  count: string;
 };

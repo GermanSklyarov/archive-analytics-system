@@ -10,13 +10,14 @@ import {
   YAxis,
   type DotProps,
 } from "recharts";
-import type { DataPoint } from "../model/types";
+import type { DashboardFilters, DataPoint } from "../model/types";
 
 type Props = {
   data: DataPoint[];
+  filters: DashboardFilters;
 };
 
-export const AnalyticsChart = ({ data }: Props) => {
+export const AnalyticsChart = ({ data, filters }: Props) => {
   const navigate = useNavigate();
 
   type DotPayload = DotProps & {
@@ -38,6 +39,9 @@ export const AnalyticsChart = ({ data }: Props) => {
         JSON.stringify({
           dateFrom: dateFrom.toISOString(),
           dateTo: dateTo.toISOString(),
+          tag: filters.tag,
+          unit: filters.unit,
+          userId: filters.userId,
         }),
       )}`,
     );
@@ -77,7 +81,7 @@ export const AnalyticsChart = ({ data }: Props) => {
                 onClick: handleClick,
               }}
             />
-            <Line dataKey="count" />
+            <Line dataKey="count" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </CardContent>

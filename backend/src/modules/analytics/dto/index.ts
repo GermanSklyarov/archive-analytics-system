@@ -1,3 +1,4 @@
+export * from './analytics-filter.dto';
 export * from './by-category-response.dto';
 export * from './by-date-response.dto';
 export * from './create-analytics.dto';

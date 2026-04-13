@@ -2,11 +2,7 @@ import {
   Alert,
   Box,
   Chip,
-  FormControl,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Snackbar,
   Stack,
   Typography,
@@ -22,6 +18,7 @@ import { FileUpload } from "./ui/FileUpload";
 import { ImportResult } from "./ui/ImportResult";
 import { RawPreviewTable } from "./ui/RawPreviewTable";
 
+import { useArchiveMeta } from "../../hooks/useArchiveMeta";
 import type {
   ColumnMapping,
   ImportResponse,
@@ -30,12 +27,14 @@ import type {
 } from "./model/types";
 import { useImportPreviewWithMapping } from "./model/useImportPreviewWithMapping";
 import { MappedPreviewTable } from "./ui/MappedPreviewTable";
+import { MappingForm } from "./ui/MappingForm";
 
 export function ImportPage() {
   const { runImport, loading: importing } = useImport();
   const { loading: previewLoading } = useImportPreview();
   const { runPreviewWithMapping, loading: mappingPreviewLoading } =
     useImportPreviewWithMapping();
+  const { data: meta } = useArchiveMeta();
 
   const [parsedPreview, setParsedPreview] =
     useState<PreviewWithMappingResponse | null>(null);
@@ -47,9 +46,14 @@ export function ImportPage() {
     value: "",
     category: "",
     created_at: "",
+    tag: "",
+    unit: "",
+    manualTag: "",
+    manualUnit: "",
   });
   const resultRef = useRef<HTMLDivElement | null>(null);
   const mappedRef = useRef<HTMLDivElement | null>(null);
+  const hasScrolledRef = useRef(false);
 
   const hasErrors = result
     ? result.invalid > 0
@@ -58,15 +62,31 @@ export function ImportPage() {
       : false;
 
   const isMappingValid =
-    mapping.value && mapping.category && mapping.created_at;
+    mapping.value &&
+    mapping.category &&
+    mapping.created_at &&
+    (mapping.tag === "manual" ? mapping.manualTag : mapping.tag) &&
+    (mapping.unit === "manual" ? mapping.manualUnit : mapping.unit);
 
   const errorCount = result?.invalid ?? parsedPreview?.invalid ?? 0;
 
   const handlePreview = (file: File, data: PreviewResponse) => {
     setFile(file);
     setRawPreview(data);
-    setMapping(data.mapping);
+
+    const nextMapping: ColumnMapping = {
+      value: data.mapping.value ?? "",
+      category: data.mapping.category ?? "",
+      created_at: data.mapping.created_at ?? "",
+      tag: data.mapping.tag ?? "",
+      unit: data.mapping.unit ?? "",
+      manualTag: "",
+      manualUnit: "",
+    };
+
+    setMapping(nextMapping);
     setResult(null);
+    hasScrolledRef.current = false;
   };
 
   const handleImport = async () => {
@@ -87,13 +107,19 @@ export function ImportPage() {
 
   useEffect(() => {
     if (!file || !isMappingValid) return;
+    if (mapping.tag === "manual" && !mapping.manualTag?.trim()) return;
 
-    runPreviewWithMapping(file, mapping).then(setParsedPreview);
-  }, [mapping]);
+    const timeout = setTimeout(() => {
+      runPreviewWithMapping(file, mapping).then(setParsedPreview);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [mapping, file, isMappingValid]);
 
   useEffect(() => {
-    if (parsedPreview) {
+    if (parsedPreview && !hasScrolledRef.current) {
       mappedRef.current?.scrollIntoView({ behavior: "smooth" });
+      hasScrolledRef.current = true;
     }
   }, [parsedPreview]);
 
@@ -139,39 +165,12 @@ export function ImportPage() {
           </Stack>
 
           {rawPreview && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                Map columns
-              </Typography>
-
-              <Stack direction="row" spacing={2}>
-                {["value", "category", "created_at"].map((field) => (
-                  <FormControl key={field} size="small" sx={{ minWidth: 160 }}>
-                    <InputLabel>{field}</InputLabel>
-                    <Select
-                      value={mapping[field as keyof typeof mapping]}
-                      label={field}
-                      onChange={(e) =>
-                        setMapping((prev) => ({
-                          ...prev,
-                          [field]: e.target.value,
-                        }))
-                      }
-                    >
-                      {rawPreview.columns.map((col) => (
-                        <MenuItem
-                          key={col}
-                          value={col}
-                          selected={Object.values(mapping).includes(col)}
-                        >
-                          {col}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                ))}
-              </Stack>
-            </Box>
+            <MappingForm
+              columns={rawPreview.columns}
+              mapping={mapping}
+              meta={meta}
+              onChange={setMapping}
+            />
           )}
 
           <Box sx={{ mt: 3 }}>

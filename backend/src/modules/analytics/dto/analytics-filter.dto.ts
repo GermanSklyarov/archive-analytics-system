@@ -1,6 +1,6 @@
 import { IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
 
-export class CreateAnalyticsDto {
+export class AnalyticsFilterDto {
   @IsOptional()
   @IsDateString()
   dateFrom?: string;
@@ -9,9 +9,6 @@ export class CreateAnalyticsDto {
   @IsDateString()
   dateTo?: string;
 
-  @IsString()
-  aggregationType: string;
-
   @IsOptional()
   @IsNumber()
   userId?: number;
@@ -19,4 +16,20 @@ export class CreateAnalyticsDto {
   @IsOptional()
   @IsString()
   tag?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsNumber()
+  minValue?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxValue?: number;
 }

@@ -17,6 +17,14 @@ const buildQuery = (filters?: DashboardFilters) => {
     params.append("dateTo", filters.dateTo);
   }
 
+  if (filters.tag) {
+    params.append("tag", filters.tag);
+  }
+
+  if (filters.unit) {
+    params.append("unit", filters.unit);
+  }
+
   return params.toString();
 };
 

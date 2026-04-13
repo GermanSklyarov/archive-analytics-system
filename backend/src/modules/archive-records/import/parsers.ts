@@ -67,7 +67,7 @@ export function parseMetadata(
 
 export function parseMapping(mappingRaw: string): ColumnMapping {
   try {
-    const parsed = JSON.parse(mappingRaw) as ColumnMapping;
+    const parsed = JSON.parse(mappingRaw) as Partial<ColumnMapping>;
 
     return {
       value: typeof parsed.value === 'string' ? parsed.value : undefined,
@@ -75,6 +75,13 @@ export function parseMapping(mappingRaw: string): ColumnMapping {
         typeof parsed.category === 'string' ? parsed.category : undefined,
       created_at:
         typeof parsed.created_at === 'string' ? parsed.created_at : undefined,
+
+      tag: typeof parsed.tag === 'string' ? parsed.tag : undefined,
+      unit: typeof parsed.unit === 'string' ? parsed.unit : undefined,
+      manualTag:
+        typeof parsed.manualTag === 'string' ? parsed.manualTag : undefined,
+      manualUnit:
+        typeof parsed.manualUnit === 'string' ? parsed.manualUnit : undefined,
     };
   } catch {
     throw new BadRequestException('Invalid mapping JSON');

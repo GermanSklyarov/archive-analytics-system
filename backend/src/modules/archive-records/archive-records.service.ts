@@ -21,6 +21,8 @@ import {
   PreviewImportResponse,
   PreviewRow,
   RawRow,
+  TagRow,
+  UnitRow,
 } from './import/types';
 
 function getErrorMessage(error: unknown): string {
@@ -75,25 +77,47 @@ export class ArchiveRecordsService {
         const createdAtRaw = mapping.created_at
           ? row[mapping.created_at]
           : undefined;
+        const tagRaw =
+          mapping.tag === 'manual'
+            ? mapping.manualTag
+            : row[mapping.tag ?? 'tag'];
+
+        const unitRaw =
+          mapping.unit === 'manual'
+            ? mapping.manualUnit
+            : row[mapping.unit ?? 'unit'];
 
         const metadata = { ...row };
 
+        if (mapping.tag) delete metadata[mapping.tag];
         if (mapping.value) delete metadata[mapping.value];
         if (mapping.category) delete metadata[mapping.category];
         if (mapping.created_at) delete metadata[mapping.created_at];
+        if (mapping.unit) delete metadata[mapping.unit];
 
         if (categoryRaw == null || valueRaw == null) {
           throw new Error('category and value are required');
         }
 
+        const normalize = (s: string) => s.trim().toLowerCase();
+
+        const tagParsed = tagRaw
+          ? normalize(parseString(tagRaw, 'tag', index))
+          : mapping.tag
+            ? 'unknown'
+            : 'default';
+
+        const unitParsed = unitRaw
+          ? normalize(parseString(unitRaw, 'unit', index))
+          : undefined;
+
         parsedRecords.push({
+          tag: tagParsed,
           category: parseString(categoryRaw, 'category', index),
           value: parseNumber(valueRaw, index),
-
           userId: currentUserId,
-
           created_at: createdAtRaw ? parseDate(createdAtRaw) : new Date(),
-
+          unit: unitParsed,
           metadata: parseMetadata(metadata, index),
         });
       } catch (e: unknown) {
@@ -107,9 +131,11 @@ export class ArchiveRecordsService {
 
     for (const record of validRecords) {
       const key = JSON.stringify({
+        tag: record.tag,
         category: record.category,
         value: record.value,
         created_at: record.created_at.toISOString(),
+        unit: record.unit,
         userId: record.userId ?? null,
         metadata: record.metadata ?? null,
       });
@@ -132,9 +158,11 @@ export class ArchiveRecordsService {
         .insert()
         .values(
           chunk.map((r) => ({
+            tag: r.tag,
             category: r.category,
             value: r.value,
             created_at: r.created_at,
+            unit: r.unit,
             metadata: r.metadata as Record<string, any>,
             user: { id: currentUserId },
           })),
@@ -201,6 +229,19 @@ export class ArchiveRecordsService {
       const rowErrors: string[] = [];
 
       try {
+        const tagRaw =
+          mapping.tag === 'manual'
+            ? mapping.manualTag
+            : mapping.tag
+              ? row[mapping.tag]
+              : undefined;
+
+        const unitRaw =
+          mapping.unit === 'manual'
+            ? mapping.manualUnit
+            : mapping.unit
+              ? row[mapping.unit]
+              : undefined;
         const valueRaw = mapping.value ? row[mapping.value] : undefined;
         const categoryRaw = mapping.category
           ? row[mapping.category]
@@ -211,21 +252,35 @@ export class ArchiveRecordsService {
 
         const metadata = { ...row };
 
+        if (mapping.tag) delete metadata[mapping.tag];
         if (mapping.value) delete metadata[mapping.value];
         if (mapping.category) delete metadata[mapping.category];
         if (mapping.created_at) delete metadata[mapping.created_at];
+        if (mapping.unit) delete metadata[mapping.unit];
 
         if (!categoryRaw || valueRaw === undefined) {
           rowErrors.push('category and value are required');
         }
 
+        const normalize = (s: string) => s.trim().toLowerCase();
+
+        const tagParsed = tagRaw
+          ? normalize(parseString(tagRaw, 'tag', index))
+          : undefined;
+
+        const unitParsed = unitRaw
+          ? normalize(parseString(unitRaw, 'unit', index))
+          : undefined;
+
         const parsed: Partial<NormalizedRecord> = {
+          tag: tagParsed,
           category: categoryRaw
             ? parseString(categoryRaw, 'category', index)
             : undefined,
           value:
             valueRaw !== undefined ? parseNumber(valueRaw, index) : undefined,
           created_at: createdAtRaw ? parseDate(createdAtRaw) : new Date(),
+          unit: unitParsed,
           metadata: parseMetadata(metadata, index),
         };
 
@@ -272,6 +327,43 @@ export class ArchiveRecordsService {
       value: find(['value', 'amount', 'price', 'sum']) || '',
       category: find(['category', 'type', 'group', 'name']) || '',
       created_at: find(['date', 'created', 'time']) || '',
+      tag: find(['tag', 'type', 'source']) || '',
+      unit: find(['unit', 'currency', 'measure']) || '',
+    };
+  }
+
+  async getMeta(userId: number) {
+    const tagsRaw = await this.archiveRepo
+      .createQueryBuilder('record')
+      .select('LOWER(TRIM(record.tag))', 'tag')
+      .addSelect('COUNT(*)', 'count')
+      .where('record.userId = :userId', { userId })
+      .andWhere('record.tag IS NOT NULL')
+      .groupBy('tag')
+      .orderBy('count', 'DESC')
+      .limit(50)
+      .getRawMany<TagRow>();
+
+    const unitsRaw = await this.archiveRepo
+      .createQueryBuilder('record')
+      .select('LOWER(TRIM(record.unit))', 'unit')
+      .addSelect('COUNT(*)', 'count')
+      .where('record.userId = :userId', { userId })
+      .andWhere('record.unit IS NOT NULL')
+      .groupBy('unit')
+      .orderBy('count', 'DESC')
+      .limit(50)
+      .getRawMany<UnitRow>();
+
+    return {
+      tags: tagsRaw.map((t) => ({
+        value: t.tag,
+        count: Number(t.count),
+      })),
+      units: unitsRaw.map((u) => ({
+        value: u.unit,
+        count: Number(u.count),
+      })),
     };
   }
 
@@ -281,8 +373,8 @@ export class ArchiveRecordsService {
       .leftJoinAndSelect('record.user', 'user');
 
     if (query.category) {
-      qb.andWhere('record.category = :category', {
-        category: query.category,
+      qb.andWhere('record.category ILIKE :category', {
+        category: `%${query.category}%`,
       });
     }
 
@@ -313,6 +405,18 @@ export class ArchiveRecordsService {
     if (query.dateTo) {
       qb.andWhere('record.created_at <= :dateTo', {
         dateTo: query.dateTo,
+      });
+    }
+
+    if (query.tag) {
+      qb.andWhere('LOWER(TRIM(record.tag)) = LOWER(TRIM(:tag))', {
+        tag: query.tag,
+      });
+    }
+
+    if (query.unit) {
+      qb.andWhere('LOWER(TRIM(record.unit)) = LOWER(TRIM(:unit))', {
+        unit: query.unit,
       });
     }
 

@@ -25,6 +25,12 @@ export class ArchiveRecord {
   created_at: Date;
 
   @Column()
+  tag: string;
+
+  @Column({ nullable: true })
+  unit?: string;
+
+  @Column()
   category: string;
 
   @Column('float')

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { ArchiveRecord } from '../archive-records/entities/archive-record.entity';
 import { ResultsService } from '../results/results.service';
-import { CreateAnalyticsDto } from './dto';
+import { AnalyticsFilterDto, CreateAnalyticsDto } from './dto';
 import { AnalyticsRequest } from './entities/analytics.entity';
 
 @Injectable()
@@ -17,16 +17,10 @@ export class AnalyticsService {
     private readonly analyticsRepo: Repository<AnalyticsRequest>,
   ) {}
 
-  async getAverage(dateFrom?: string, dateTo?: string) {
+  async getAverage(filters: AnalyticsFilterDto) {
     const qb = this.archiveRepo.createQueryBuilder('record');
 
-    if (dateFrom) {
-      qb.andWhere('record.created_at >= :dateFrom', { dateFrom });
-    }
-
-    if (dateTo) {
-      qb.andWhere('record.created_at <= :dateTo', { dateTo });
-    }
+    this.applyFilters(qb, filters);
 
     const result = await qb
       .select('AVG(record.value)', 'avg')
@@ -37,27 +31,15 @@ export class AnalyticsService {
     };
   }
 
-  async getByCategory(userId?: number, dateFrom?: string, dateTo?: string) {
+  async getByCategory(filters: AnalyticsFilterDto) {
     const request = await this.logRequest({
+      ...filters,
       aggregationType: 'by-category',
-      userId,
-      dateFrom,
-      dateTo,
     });
 
     const qb = this.archiveRepo.createQueryBuilder('record');
 
-    if (userId) {
-      qb.andWhere('record.user_id = :userId', { userId });
-    }
-
-    if (dateFrom) {
-      qb.andWhere('record.created_at >= :dateFrom', { dateFrom });
-    }
-
-    if (dateTo) {
-      qb.andWhere('record.created_at <= :dateTo', { dateTo });
-    }
+    this.applyFilters(qb, filters);
 
     const result = await qb
       .select('record.category', 'category')
@@ -81,20 +63,10 @@ export class AnalyticsService {
     return response;
   }
 
-  async getByDate(dateFrom?: string, dateTo?: string, userId?: number) {
+  async getByDate(filters: AnalyticsFilterDto) {
     const qb = this.archiveRepo.createQueryBuilder('record');
 
-    if (dateFrom) {
-      qb.andWhere('record.created_at >= :dateFrom', { dateFrom });
-    }
-
-    if (dateTo) {
-      qb.andWhere('record.created_at <= :dateTo', { dateTo });
-    }
-
-    if (userId) {
-      qb.andWhere('record.user_id = :userId', { userId });
-    }
+    this.applyFilters(qb, filters);
 
     const result = await qb
       .select('DATE(record.created_at)', 'date')
@@ -115,10 +87,8 @@ export class AnalyticsService {
       }>();
 
     const request = await this.logRequest({
-      dateFrom,
-      dateTo,
+      ...filters,
       aggregationType: 'by-date',
-      userId,
     });
 
     const response = result.map((item) => ({
@@ -135,20 +105,10 @@ export class AnalyticsService {
     return response;
   }
 
-  async getSummary(dateFrom?: string, dateTo?: string, userId?: number) {
+  async getSummary(filters: AnalyticsFilterDto) {
     const qb = this.archiveRepo.createQueryBuilder('record');
 
-    if (dateFrom) {
-      qb.andWhere('record.created_at >= :dateFrom', { dateFrom });
-    }
-
-    if (dateTo) {
-      qb.andWhere('record.created_at <= :dateTo', { dateTo });
-    }
-
-    if (userId) {
-      qb.andWhere('record.user_id = :userId', { userId });
-    }
+    this.applyFilters(qb, filters);
 
     const result = await qb
       .select('AVG(record.value)', 'avg')
@@ -165,10 +125,8 @@ export class AnalyticsService {
       }>();
 
     const request = await this.logRequest({
-      dateFrom,
-      dateTo,
+      ...filters,
       aggregationType: 'summary',
-      userId,
     });
 
     const response = {
@@ -215,6 +173,56 @@ export class AnalyticsService {
         count: Number(item.count),
       })),
     };
+  }
+
+  private applyFilters(
+    qb: SelectQueryBuilder<ArchiveRecord>,
+    filters: AnalyticsFilterDto,
+  ) {
+    const {
+      dateFrom,
+      dateTo,
+      userId,
+      tag,
+      unit,
+      category,
+      minValue,
+      maxValue,
+    } = filters;
+
+    if (dateFrom) {
+      qb.andWhere('record.created_at >= :dateFrom', { dateFrom });
+    }
+
+    if (dateTo) {
+      qb.andWhere('record.created_at <= :dateTo', { dateTo });
+    }
+
+    if (userId) {
+      qb.andWhere('record.user_id = :userId', { userId });
+    }
+
+    if (tag) {
+      qb.andWhere('record.tag = :tag', { tag });
+    }
+
+    if (unit) {
+      qb.andWhere('record.unit = :unit', { unit });
+    }
+
+    if (category) {
+      qb.andWhere('LOWER(record.category) LIKE LOWER(:category)', {
+        category: `%${category}%`,
+      });
+    }
+
+    if (minValue !== undefined) {
+      qb.andWhere('record.value >= :minValue', { minValue });
+    }
+
+    if (maxValue !== undefined) {
+      qb.andWhere('record.value <= :maxValue', { maxValue });
+    }
   }
 
   private async logRequest(dto: CreateAnalyticsDto) {

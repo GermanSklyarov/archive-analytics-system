@@ -57,4 +57,10 @@ export type ColumnMapping = {
   value?: string;
   category?: string;
   created_at?: string;
+
+  tag?: string;
+  unit?: string;
+
+  manualTag?: string;
+  manualUnit?: string;
 };
