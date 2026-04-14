@@ -1,4 +1,12 @@
-import { Datagrid, DateField, List, NumberField, ReferenceField, TextField } from "react-admin";
+import {
+  Datagrid,
+  DateField,
+  FunctionField,
+  List,
+  NumberField,
+  ReferenceField,
+  TextField,
+} from "react-admin";
 
 export const ResultsList = () => (
   <List>
@@ -12,6 +20,17 @@ export const ResultsList = () => (
 
       <TextField source="dateFrom" />
       <TextField source="dateTo" />
+      <FunctionField
+        label="Filters"
+        render={(record) => {
+          const f = record?.request?.filters;
+          if (!f) return "-";
+
+          return Object.entries(f)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+        }}
+      />
     </Datagrid>
   </List>
 );

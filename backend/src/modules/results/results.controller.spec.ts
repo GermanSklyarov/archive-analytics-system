@@ -4,11 +4,22 @@ import { ResultsService } from './results.service';
 
 describe('ResultsController', () => {
   let controller: ResultsController;
+  const resultsServiceMock = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByRequest: jest.fn(),
+    removeMany: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ResultsController],
-      providers: [ResultsService],
+      providers: [
+        {
+          provide: ResultsService,
+          useValue: resultsServiceMock,
+        },
+      ],
     }).compile();
 
     controller = module.get<ResultsController>(ResultsController);

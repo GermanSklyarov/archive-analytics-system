@@ -14,10 +14,10 @@ import type { DashboardFilters, DataPoint } from "../model/types";
 
 type Props = {
   data: DataPoint[];
-  filters: DashboardFilters;
+  filters?: DashboardFilters;
 };
 
-export const AnalyticsChart = ({ data, filters }: Props) => {
+export const AnalyticsChart = ({ data, filters = {} }: Props) => {
   const navigate = useNavigate();
 
   type DotPayload = DotProps & {

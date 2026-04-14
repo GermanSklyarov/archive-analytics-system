@@ -14,16 +14,20 @@ type Props = {
   filters: DashboardFilters;
   users: User[];
   meta: ImportMetaResponse | null;
+  isDirty: boolean;
   onChange: (key: keyof DashboardFilters, value: unknown) => void;
   onReset: () => void;
+  onApply: () => void;
 };
 
 export const DashboardFiltersBar = ({
   filters,
   users,
   meta,
+  isDirty,
   onChange,
   onReset,
+  onApply,
 }: Props) => (
   <Box display="flex" gap={2} mb={2}>
     <TextField
@@ -96,6 +100,9 @@ export const DashboardFiltersBar = ({
       sx={{ minWidth: 200 }}
     />
 
+    <Button disabled={!isDirty} onClick={onApply}>
+      Apply
+    </Button>
     <Button variant="outlined" onClick={onReset}>
       Reset
     </Button>

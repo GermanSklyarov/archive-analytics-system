@@ -36,10 +36,19 @@ export const Dashboard = () => {
   const { data: meta } = useArchiveMeta();
 
   const handleChange = (key: keyof DashboardFilters, value: unknown) => {
-    setFilters((prev) => ({
+    setDraftFilters((prev) => ({
       ...prev,
       [key]: value || undefined,
     }));
+  };
+
+  const handleApply = () => {
+    setAppliedFilters(draftFilters);
+  };
+
+  const handleReset = () => {
+    setDraftFilters({});
+    setAppliedFilters({});
   };
 
   const getInitialFilters = (): DashboardFilters => {
@@ -59,9 +68,9 @@ export const Dashboard = () => {
     setLoading(true);
     try {
       const [summaryRes, dateData, categoryRes] = await Promise.all([
-        getSummary(filters),
-        getAnalyticsByDate(filters),
-        getAnalyticsByCategory(filters),
+        getSummary(appliedFilters),
+        getAnalyticsByDate(appliedFilters),
+        getAnalyticsByCategory(appliedFilters),
       ]);
 
       setSummary(summaryRes);
@@ -82,17 +91,24 @@ export const Dashboard = () => {
       .then(({ data }) => setUsers(data));
   }, []);
 
-  const [filters, setFilters] = useState<DashboardFilters>(getInitialFilters());
+  const [appliedFilters, setAppliedFilters] =
+    useState<DashboardFilters>(getInitialFilters());
+
+  const [draftFilters, setDraftFilters] =
+    useState<DashboardFilters>(getInitialFilters());
+
+  const isDirty =
+    JSON.stringify(draftFilters) !== JSON.stringify(appliedFilters);
 
   useEffect(() => {
     const params = new URLSearchParams();
 
-    if (Object.keys(filters).length > 0) {
-      params.set("filter", JSON.stringify(filters));
+    if (Object.keys(appliedFilters).length > 0) {
+      params.set("filter", JSON.stringify(appliedFilters));
     }
 
     navigate({ search: params.toString() }, { replace: true });
-  }, [filters]);
+  }, [appliedFilters]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -103,12 +119,8 @@ export const Dashboard = () => {
     try {
       const parsed = JSON.parse(filterParam);
 
-      setFilters((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(parsed)) {
-          return prev;
-        }
-        return parsed;
-      });
+      setAppliedFilters(parsed);
+      setDraftFilters(parsed);
     } catch (error) {
       console.error("Error parsing filter:", error);
     }
@@ -116,7 +128,7 @@ export const Dashboard = () => {
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [appliedFilters]);
 
   return (
     <div>
@@ -127,11 +139,13 @@ export const Dashboard = () => {
       <ImportButton />
 
       <DashboardFiltersBar
-        filters={filters}
+        filters={draftFilters}
         users={users}
         meta={meta}
+        isDirty={isDirty}
         onChange={handleChange}
-        onReset={() => setFilters({})}
+        onReset={handleReset}
+        onApply={handleApply}
       />
 
       {loading ? (
@@ -139,8 +153,11 @@ export const Dashboard = () => {
       ) : (
         <>
           <SummaryCards summary={summary} />
-          <AnalyticsChart data={data} filters={filters} />
-          <AnalyticsByCategoryChart data={categoryData} filters={filters} />
+          <AnalyticsChart data={data} filters={appliedFilters} />
+          <AnalyticsByCategoryChart
+            data={categoryData}
+            filters={appliedFilters}
+          />
         </>
       )}
 

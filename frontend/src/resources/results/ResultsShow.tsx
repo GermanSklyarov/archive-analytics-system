@@ -3,6 +3,7 @@ import {
   Button,
   Datagrid,
   DateField,
+  FunctionField,
   ListButton,
   NumberField,
   ReferenceField,
@@ -28,6 +29,7 @@ const ResultsShowActions = () => {
       userId: record.userId,
       dateFrom: record.dateFrom,
       dateTo: record.dateTo,
+      ...record.request?.filters,
     };
 
     navigate(`/?filter=${encodeURIComponent(JSON.stringify(filters))}`);
@@ -89,6 +91,18 @@ export const ResultsShow = () => (
 
       <TextField source="dateFrom" />
       <TextField source="dateTo" />
+
+      <FunctionField
+        label="Filters"
+        render={(record) => {
+          const f = record?.request?.filters;
+          if (!f) return "-";
+
+          return Object.entries(f)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+        }}
+      />
 
       <ResultDataView />
     </SimpleShowLayout>

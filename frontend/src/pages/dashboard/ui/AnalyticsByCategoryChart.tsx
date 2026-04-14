@@ -15,14 +15,14 @@ import type { CategoryDataPoint, DashboardFilters } from "../model/types";
 
 type Props = {
   data: CategoryDataPoint[];
-  filters: DashboardFilters;
+  filters?: DashboardFilters;
 };
 
 type BarPayload = RectangleProps & {
   payload?: CategoryDataPoint;
 };
 
-export const AnalyticsByCategoryChart = ({ data, filters }: Props) => {
+export const AnalyticsByCategoryChart = ({ data, filters = {} }: Props) => {
   const navigate = useNavigate();
 
   const handleClick = (data: BarPayload) => {

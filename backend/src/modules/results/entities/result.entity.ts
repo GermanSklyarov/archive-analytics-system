@@ -1,4 +1,4 @@
-import { AnalyticsRequest } from 'src/modules/analytics/entities/analytics.entity';
+import { AnalyticsRequest } from '../../analytics/entities/analytics.entity';
 import {
   Column,
   CreateDateColumn,
@@ -34,4 +34,7 @@ export class AnalyticsResult {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @Column({ type: 'jsonb', nullable: true })
+  filters?: Record<string, any>;
 }

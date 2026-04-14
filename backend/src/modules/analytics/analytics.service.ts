@@ -32,9 +32,13 @@ export class AnalyticsService {
   }
 
   async getByCategory(filters: AnalyticsFilterDto) {
+    const { userId, dateFrom, dateTo, ...otherFilters } = filters;
     const request = await this.logRequest({
-      ...filters,
       aggregationType: 'by-category',
+      userId,
+      dateFrom,
+      dateTo,
+      filters: otherFilters,
     });
 
     const qb = this.archiveRepo.createQueryBuilder('record');
@@ -86,9 +90,13 @@ export class AnalyticsService {
         max: string | null;
       }>();
 
+    const { userId, dateFrom, dateTo, ...otherFilters } = filters;
     const request = await this.logRequest({
-      ...filters,
       aggregationType: 'by-date',
+      userId,
+      dateFrom,
+      dateTo,
+      filters: otherFilters,
     });
 
     const response = result.map((item) => ({
@@ -124,9 +132,13 @@ export class AnalyticsService {
         max: string | null;
       }>();
 
+    const { userId, dateFrom, dateTo, ...otherFilters } = filters;
     const request = await this.logRequest({
-      ...filters,
       aggregationType: 'summary',
+      userId,
+      dateFrom,
+      dateTo,
+      filters: otherFilters,
     });
 
     const response = {

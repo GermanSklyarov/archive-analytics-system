@@ -68,9 +68,25 @@ export const dataProvider: DataProvider = {
 
   // пока заглушки
   getManyReference: async () => ({ data: [], total: 0 }),
-  update: async () => ({ data: {} }),
+  update: async (resource, params) => {
+    const json = await http(`${API_URL}/${resource}/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params.data),
+    });
+
+    return { data: json };
+  },
   updateMany: async () => ({ data: [] }),
-  create: async () => ({ data: {} }),
+  create: async (resource, params) => {
+    const json = await http(`${API_URL}/${resource}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params.data),
+    });
+
+    return { data: json };
+  },
 
   delete: async (resource, params) => {
     const response = await fetch(`/api/${resource}/${params.id}`, {

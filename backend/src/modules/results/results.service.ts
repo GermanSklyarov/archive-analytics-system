@@ -20,6 +20,8 @@ export class ResultsService {
       userId: request.user?.id,
       dateFrom: request.dateFrom,
       dateTo: request.dateTo,
+
+      filters: request.filters,
     });
 
     return this.resultRepo.save(result);
@@ -34,6 +36,7 @@ export class ResultsService {
     } = query;
 
     const [data, total] = await this.resultRepo.findAndCount({
+      relations: ['request'],
       skip: (page - 1) * limit,
       take: limit,
       order: { [sortBy]: order },
