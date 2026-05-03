@@ -2,7 +2,6 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as XLSX from 'xlsx';
 import {
   CreateArchiveRecordDto,
   QueryArchiveRecordsDto,
@@ -10,11 +9,11 @@ import {
 } from './dto';
 import { ArchiveRecord } from './entities/archive-record.entity';
 import {
-  parseDate,
-  parseMetadata,
-  parseNumber,
-  parseString,
-} from './import/parsers';
+  normalizeSingleRecord,
+  normalizeWideRecords,
+  resolveWideModeColumns,
+} from './import/transform';
+import { readWorksheetRows } from './import/worksheet';
 import {
   ColumnMapping,
   NormalizedRecord,
@@ -57,12 +56,18 @@ export class ArchiveRecordsService {
       throw new BadRequestException('File is required');
     }
 
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json<RawRow>(sheet);
+    const rawData = readWorksheetRows(file);
 
     if (!rawData.length) {
       throw new BadRequestException('Empty file');
+    }
+
+    const wideMode = resolveWideModeColumns(rawData, mapping);
+
+    if (wideMode.enabled && wideMode.valueColumns.length === 0) {
+      throw new BadRequestException(
+        'No numeric columns found for automatic wide import',
+      );
     }
 
     const parsedRecords: NormalizedRecord[] = [];
@@ -70,56 +75,17 @@ export class ArchiveRecordsService {
 
     rawData.forEach((row, index) => {
       try {
-        const valueRaw = mapping.value ? row[mapping.value] : undefined;
-        const categoryRaw = mapping.category
-          ? row[mapping.category]
-          : undefined;
-        const createdAtRaw = mapping.created_at
-          ? row[mapping.created_at]
-          : undefined;
-        const tagRaw =
-          mapping.tag === 'manual'
-            ? mapping.manualTag
-            : row[mapping.tag ?? 'tag'];
+        const records = wideMode.enabled
+          ? normalizeWideRecords(
+              row,
+              index,
+              mapping,
+              currentUserId,
+              wideMode.valueColumns,
+            )
+          : [normalizeSingleRecord(row, index, mapping, currentUserId)];
 
-        const unitRaw =
-          mapping.unit === 'manual'
-            ? mapping.manualUnit
-            : row[mapping.unit ?? 'unit'];
-
-        const metadata = { ...row };
-
-        if (mapping.tag) delete metadata[mapping.tag];
-        if (mapping.value) delete metadata[mapping.value];
-        if (mapping.category) delete metadata[mapping.category];
-        if (mapping.created_at) delete metadata[mapping.created_at];
-        if (mapping.unit) delete metadata[mapping.unit];
-
-        if (categoryRaw == null || valueRaw == null) {
-          throw new Error('category and value are required');
-        }
-
-        const normalize = (s: string) => s.trim().toLowerCase();
-
-        const tagParsed = tagRaw
-          ? normalize(parseString(tagRaw, 'tag', index))
-          : mapping.tag
-            ? 'unknown'
-            : 'default';
-
-        const unitParsed = unitRaw
-          ? normalize(parseString(unitRaw, 'unit', index))
-          : undefined;
-
-        parsedRecords.push({
-          tag: tagParsed,
-          category: parseString(categoryRaw, 'category', index),
-          value: parseNumber(valueRaw, index),
-          userId: currentUserId,
-          created_at: createdAtRaw ? parseDate(createdAtRaw) : new Date(),
-          unit: unitParsed,
-          metadata: parseMetadata(metadata, index),
-        });
+        parsedRecords.push(...records);
       } catch (e: unknown) {
         errors.push(`Row ${index}: ${getErrorMessage(e)}`);
       }
@@ -175,10 +141,12 @@ export class ArchiveRecordsService {
 
     return {
       total: rawData.length,
+      generated: parsedRecords.length,
+      mode: wideMode.enabled ? 'wide' : 'single',
       parsed: parsedRecords.length,
       valid: validRecords.length,
       inserted,
-      skipped: rawData.length - inserted,
+      skipped: validRecords.length - inserted,
       invalid: errors.length,
       errors: errors.slice(0, 20),
     };
@@ -189,19 +157,30 @@ export class ArchiveRecordsService {
       throw new BadRequestException('File is required');
     }
 
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json<RawRow>(sheet);
+    const rawData = readWorksheetRows(file);
 
     if (!rawData.length) {
       throw new BadRequestException('Empty file');
     }
 
     const columns = Object.keys(rawData[0] ?? {});
-    const mapping = this.autoDetectMapping(columns);
+    const mapping = this.autoDetectMapping(columns, rawData);
+    const wideMode = resolveWideModeColumns(rawData, mapping);
+    const generated = wideMode.enabled
+      ? rawData.reduce(
+          (count, row) =>
+            count +
+            wideMode.valueColumns.filter(
+              (column) => row[column] !== null && row[column] !== '',
+            ).length,
+          0,
+        )
+      : rawData.length;
 
     return {
       total: rawData.length,
+      generated,
+      mode: wideMode.enabled ? 'wide' : 'single',
       preview: rawData.slice(0, 50).map((row, index) => ({
         index,
         raw: row,
@@ -218,82 +197,43 @@ export class ArchiveRecordsService {
       throw new BadRequestException('File is required');
     }
 
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json<RawRow>(sheet);
+    const rawData = readWorksheetRows(file);
+    const wideMode = resolveWideModeColumns(rawData, mapping);
+
+    if (wideMode.enabled && wideMode.valueColumns.length === 0) {
+      throw new BadRequestException(
+        'No numeric columns found for automatic wide preview',
+      );
+    }
 
     const preview: PreviewRow[] = [];
     const errors: string[] = [];
 
     rawData.forEach((row, index) => {
-      const rowErrors: string[] = [];
-
       try {
-        const tagRaw =
-          mapping.tag === 'manual'
-            ? mapping.manualTag
-            : mapping.tag
-              ? row[mapping.tag]
-              : undefined;
+        const records = wideMode.enabled
+          ? normalizeWideRecords(row, index, mapping, 1, wideMode.valueColumns)
+          : [normalizeSingleRecord(row, index, mapping, 1)];
 
-        const unitRaw =
-          mapping.unit === 'manual'
-            ? mapping.manualUnit
-            : mapping.unit
-              ? row[mapping.unit]
-              : undefined;
-        const valueRaw = mapping.value ? row[mapping.value] : undefined;
-        const categoryRaw = mapping.category
-          ? row[mapping.category]
-          : undefined;
-        const createdAtRaw = mapping.created_at
-          ? row[mapping.created_at]
-          : undefined;
-
-        const metadata = { ...row };
-
-        if (mapping.tag) delete metadata[mapping.tag];
-        if (mapping.value) delete metadata[mapping.value];
-        if (mapping.category) delete metadata[mapping.category];
-        if (mapping.created_at) delete metadata[mapping.created_at];
-        if (mapping.unit) delete metadata[mapping.unit];
-
-        if (!categoryRaw || valueRaw === undefined) {
-          rowErrors.push('category and value are required');
+        if (records.length === 0) {
+          errors.push(`Row ${index}: no numeric values found`);
+          preview.push({
+            index,
+            data: {},
+            isValid: false,
+            errors: ['no numeric values found'],
+          });
+          return;
         }
 
-        const normalize = (s: string) => s.trim().toLowerCase();
-
-        const tagParsed = tagRaw
-          ? normalize(parseString(tagRaw, 'tag', index))
-          : undefined;
-
-        const unitParsed = unitRaw
-          ? normalize(parseString(unitRaw, 'unit', index))
-          : undefined;
-
-        const parsed: Partial<NormalizedRecord> = {
-          tag: tagParsed,
-          category: categoryRaw
-            ? parseString(categoryRaw, 'category', index)
-            : undefined,
-          value:
-            valueRaw !== undefined ? parseNumber(valueRaw, index) : undefined,
-          created_at: createdAtRaw ? parseDate(createdAtRaw) : new Date(),
-          unit: unitParsed,
-          metadata: parseMetadata(metadata, index),
-        };
-
-        preview.push({
-          index,
-          data: parsed,
-          isValid: rowErrors.length === 0,
-          errors: rowErrors,
+        records.forEach((record, recordIndex) => {
+          preview.push({
+            index: wideMode.enabled ? index * 1000 + recordIndex : index,
+            data: record,
+            isValid: true,
+            errors: [],
+          });
         });
-
-        if (rowErrors.length) {
-          errors.push(`Row ${index}: ${rowErrors.join(', ')}`);
-        }
       } catch (e: unknown) {
         const message = getErrorMessage(e);
 
@@ -310,6 +250,8 @@ export class ArchiveRecordsService {
 
     return {
       total: rawData.length,
+      generated: preview.length,
+      mode: wideMode.enabled ? 'wide' : 'single',
       valid: preview.filter((r) => r.isValid).length,
       invalid: preview.filter((r) => !r.isValid).length,
       errors: errors.slice(0, 20),
@@ -317,38 +259,112 @@ export class ArchiveRecordsService {
     };
   }
 
-  private autoDetectMapping(columns: string[]): ColumnMapping {
+  private autoDetectMapping(
+    columns: string[],
+    sampleRows: RawRow[] = [],
+  ): ColumnMapping {
     const normalize = (str: string) => str.toLowerCase();
 
     const find = (candidates: string[]) =>
       columns.find((col) => candidates.some((c) => normalize(col).includes(c)));
 
+    const findDedicatedUnitColumn = () =>
+      columns.find((col) => {
+        const normalized = normalize(col);
+
+        return (
+          normalized === 'unit' ||
+          normalized.includes('unit ') ||
+          normalized.includes(' unit') ||
+          normalized.includes('единиц') ||
+          normalized.includes('ед. изм') ||
+          normalized.includes('ед изм') ||
+          normalized.includes('measure') ||
+          normalized.includes('currency')
+        );
+      });
+
+    const findCategoryColumn = () =>
+      find(['category', 'group', 'name', 'категор', 'группа']) ||
+      columns.find((col) => normalize(col).includes('сменное время'));
+
+    const findDateColumn = () =>
+      columns.find((col) => normalize(col).includes('дата листа')) ||
+      find(['date', 'created', 'дата']) ||
+      columns.find((col) => normalize(col) === 'дата');
+
+    const findUnitColumnFromSamples = () =>
+      columns.find((col) => {
+        const values = sampleRows
+          .slice(0, 20)
+          .map((row) => row[col])
+          .filter(
+            (value): value is string =>
+              typeof value === 'string' && value.trim() !== '',
+          );
+
+        if (values.length < 3) {
+          return false;
+        }
+
+        const allowed = values.filter((value) =>
+          ['мин', 'ч', '%', 'кг', 'гр', 'тонн', 'т/час', 'г/т'].includes(
+            value.trim().toLowerCase(),
+          ),
+        );
+
+        return allowed.length >= Math.ceil(values.length * 0.6);
+      });
+
     return {
-      value: find(['value', 'amount', 'price', 'sum']) || '',
-      category: find(['category', 'type', 'group', 'name']) || '',
-      created_at: find(['date', 'created', 'time']) || '',
-      tag: find(['tag', 'type', 'source']) || '',
-      unit: find(['unit', 'currency', 'measure']) || '',
+      value: find(['value', 'amount', 'price', 'sum', 'значение']) || '',
+      category: findCategoryColumn() || '',
+      created_at: findDateColumn() || '',
+      tag: find(['tag', 'source', 'тег', 'источник']) || '',
+      unit: findDedicatedUnitColumn() || findUnitColumnFromSamples() || '',
     };
   }
 
-  async getMeta(userId: number) {
-    const tagsRaw = await this.archiveRepo
-      .createQueryBuilder('record')
+  async getMeta(userId?: number) {
+    const categoriesQb = this.archiveRepo.createQueryBuilder('record');
+
+    if (userId) {
+      categoriesQb.where('record.userId = :userId', { userId });
+    }
+
+    const categoriesRaw = await categoriesQb
+      .select('record.category', 'category')
+      .addSelect('COUNT(*)', 'count')
+      .andWhere('record.category IS NOT NULL')
+      .groupBy('record.category')
+      .orderBy('count', 'DESC')
+      .limit(100)
+      .getRawMany<{ category: string; count: string }>();
+
+    const tagsQb = this.archiveRepo.createQueryBuilder('record');
+
+    if (userId) {
+      tagsQb.where('record.userId = :userId', { userId });
+    }
+
+    const tagsRaw = await tagsQb
       .select('LOWER(TRIM(record.tag))', 'tag')
       .addSelect('COUNT(*)', 'count')
-      .where('record.userId = :userId', { userId })
       .andWhere('record.tag IS NOT NULL')
       .groupBy('tag')
       .orderBy('count', 'DESC')
       .limit(50)
       .getRawMany<TagRow>();
 
-    const unitsRaw = await this.archiveRepo
-      .createQueryBuilder('record')
+    const unitsQb = this.archiveRepo.createQueryBuilder('record');
+
+    if (userId) {
+      unitsQb.where('record.userId = :userId', { userId });
+    }
+
+    const unitsRaw = await unitsQb
       .select('LOWER(TRIM(record.unit))', 'unit')
       .addSelect('COUNT(*)', 'count')
-      .where('record.userId = :userId', { userId })
       .andWhere('record.unit IS NOT NULL')
       .groupBy('unit')
       .orderBy('count', 'DESC')
@@ -356,6 +372,10 @@ export class ArchiveRecordsService {
       .getRawMany<UnitRow>();
 
     return {
+      categories: categoriesRaw.map((category) => ({
+        value: category.category,
+        count: Number(category.count),
+      })),
       tags: tagsRaw.map((t) => ({
         value: t.tag,
         count: Number(t.count),

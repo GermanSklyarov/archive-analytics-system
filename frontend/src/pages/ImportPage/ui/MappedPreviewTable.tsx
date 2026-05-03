@@ -52,6 +52,7 @@ export function MappedPreviewTable({ data }: Props) {
           <TableRow>
             <TableCell>Status</TableCell>
             <TableCell>Category</TableCell>
+            <TableCell>Unit</TableCell>
             <TableCell>Value</TableCell>
             <TableCell>User</TableCell>
             <TableCell>Date</TableCell>
@@ -88,6 +89,8 @@ export function MappedPreviewTable({ data }: Props) {
                     )}
                   </TableCell>
 
+                  <TableCell>{d?.unit ? <Chip label={d.unit} size="small" /> : "-"}</TableCell>
+
                   <TableCell>{d?.value ?? "-"}</TableCell>
 
                   <TableCell>
@@ -104,13 +107,15 @@ export function MappedPreviewTable({ data }: Props) {
                       : "-"}
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell sx={{ maxWidth: 320, minWidth: 240 }}>
                     {d?.metadata ? (
                       <Box
                         sx={{
                           pl: 1.5,
                           borderLeft: "2px solid",
                           borderColor: "divider",
+                          maxWidth: 320,
+                          overflow: "auto",
                         }}
                       >
                         <JsonView
@@ -133,7 +138,7 @@ export function MappedPreviewTable({ data }: Props) {
 
                 {!row.isValid && (
                   <TableRow>
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={7}>
                       <Typography variant="body2" color="error" sx={{ pl: 2 }}>
                         {row.errors?.join(", ") || "Unknown error"}
                       </Typography>

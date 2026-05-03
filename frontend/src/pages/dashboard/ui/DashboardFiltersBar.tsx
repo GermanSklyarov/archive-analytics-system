@@ -4,6 +4,7 @@ import {
   Button,
   MenuItem,
   Select,
+  Stack,
   TextField,
 } from "@mui/material";
 import type { ImportMetaResponse } from "../../../types/meta";
@@ -29,8 +30,22 @@ export const DashboardFiltersBar = ({
   onReset,
   onApply,
 }: Props) => (
-  <Box display="flex" gap={2} mb={2}>
+  <Box
+    sx={{
+      mb: 3,
+      display: "grid",
+      gap: 2,
+      gridTemplateColumns: {
+        xs: "1fr",
+        sm: "repeat(2, minmax(0, 1fr))",
+        lg: "repeat(6, minmax(0, 1fr)) auto",
+      },
+      alignItems: "start",
+    }}
+  >
     <TextField
+      fullWidth
+      size="small"
       label="Date from"
       type="date"
       InputLabelProps={{ shrink: true }}
@@ -39,6 +54,8 @@ export const DashboardFiltersBar = ({
     />
 
     <TextField
+      fullWidth
+      size="small"
       label="Date to"
       type="date"
       InputLabelProps={{ shrink: true }}
@@ -47,6 +64,9 @@ export const DashboardFiltersBar = ({
     />
 
     <Select
+      fullWidth
+      size="small"
+      displayEmpty
       value={filters.userId || ""}
       onChange={(e) =>
         onChange("userId", e.target.value ? Number(e.target.value) : undefined)
@@ -61,6 +81,29 @@ export const DashboardFiltersBar = ({
     </Select>
 
     <Autocomplete
+      fullWidth
+      size="small"
+      options={meta?.categories ?? []}
+      getOptionLabel={(option) =>
+        typeof option === "string"
+          ? option
+          : `${option.value} (${option.count})`
+      }
+      value={
+        meta?.categories?.find((c) => c.value === filters.category) ?? null
+      }
+      onChange={(_, value) => {
+        if (typeof value === "string") {
+          onChange("category", value);
+        } else {
+          onChange("category", value?.value);
+        }
+      }}
+      renderInput={(params) => <TextField {...params} label="Category" />}
+    />
+
+    <Autocomplete
+      fullWidth
       size="small"
       options={meta?.tags ?? []}
       getOptionLabel={(option) =>
@@ -77,10 +120,10 @@ export const DashboardFiltersBar = ({
         }
       }}
       renderInput={(params) => <TextField {...params} label="Tag" />}
-      sx={{ minWidth: 200 }}
     />
 
     <Autocomplete
+      fullWidth
       size="small"
       options={meta?.units ?? []}
       getOptionLabel={(option) =>
@@ -97,14 +140,19 @@ export const DashboardFiltersBar = ({
         }
       }}
       renderInput={(params) => <TextField {...params} label="Unit" />}
-      sx={{ minWidth: 200 }}
     />
 
-    <Button disabled={!isDirty} onClick={onApply}>
-      Apply
-    </Button>
-    <Button variant="outlined" onClick={onReset}>
-      Reset
-    </Button>
+    <Stack
+      direction={{ xs: "row", lg: "column" }}
+      spacing={1}
+      sx={{ minWidth: { lg: 120 } }}
+    >
+      <Button disabled={!isDirty} variant="contained" onClick={onApply}>
+        Apply
+      </Button>
+      <Button variant="outlined" onClick={onReset}>
+        Reset
+      </Button>
+    </Stack>
   </Box>
 );

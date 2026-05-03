@@ -31,4 +31,23 @@ describe('ArchiveRecordsService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  it('does not auto-map metric columns as unit columns', () => {
+    const mapping = (
+      service as unknown as {
+        autoDetectMapping: (columns: string[]) => {
+          created_at?: string;
+          unit?: string;
+        };
+      }
+    ).autoDetectMapping([
+      'Дата',
+      'Среднее содержание в руде / г/т',
+      'Металл в руде / гр',
+      'Извлечение / %',
+    ]);
+
+    expect(mapping.created_at).toBe('Дата');
+    expect(mapping.unit).toBe('');
+  });
 });

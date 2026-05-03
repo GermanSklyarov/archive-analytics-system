@@ -62,11 +62,8 @@ export function ImportPage() {
       : false;
 
   const isMappingValid =
-    mapping.value &&
-    mapping.category &&
-    mapping.created_at &&
-    (mapping.tag === "manual" ? mapping.manualTag : mapping.tag) &&
-    (mapping.unit === "manual" ? mapping.manualUnit : mapping.unit);
+    (mapping.tag === "manual" ? Boolean(mapping.manualTag?.trim()) : true) &&
+    (mapping.unit === "manual" ? Boolean(mapping.manualUnit?.trim()) : true);
 
   const errorCount = result?.invalid ?? parsedPreview?.invalid ?? 0;
 
@@ -155,6 +152,14 @@ export function ImportPage() {
           <Stack direction="row" spacing={2}>
             <Chip label={`Total: ${rawPreview.total}`} />
             <Chip
+              label={`Mode: ${parsedPreview?.mode ?? rawPreview.mode ?? "auto"}`}
+              color="info"
+            />
+            <Chip
+              label={`Generated: ${parsedPreview?.generated ?? rawPreview.generated ?? rawPreview.total}`}
+              color="secondary"
+            />
+            <Chip
               label={`Valid: ${parsedPreview?.valid ?? "-"}`}
               color="success"
             />
@@ -177,6 +182,13 @@ export function ImportPage() {
             <Typography variant="body2" color="text.secondary">
               Step 1: Check your file structure
             </Typography>
+
+            {rawPreview.mode === "wide" && (
+              <Alert severity="info" sx={{ mt: 1, mb: 2 }}>
+                Wide-table mode detected. Each numeric metric column will be
+                imported as a separate category for each date row.
+              </Alert>
+            )}
 
             <Typography variant="h6" gutterBottom>
               Raw data

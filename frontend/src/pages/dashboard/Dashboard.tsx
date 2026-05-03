@@ -1,4 +1,4 @@
-import { Button, CircularProgress, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 
 import { SummaryCards } from "./ui/SummaryCards";
@@ -131,7 +131,13 @@ export const Dashboard = () => {
   }, [appliedFilters]);
 
   return (
-    <div>
+    <Box
+      sx={{
+        width: "100%",
+        px: { xs: 2, sm: 3, md: 4 },
+        py: { xs: 2, md: 3 },
+      }}
+    >
       <Typography variant="h5" gutterBottom>
         Dashboard
       </Typography>
@@ -162,6 +168,6 @@ export const Dashboard = () => {
       )}
 
       <Button onClick={() => navigate("/results")}>View Results History</Button>
-    </div>
+    </Box>
   );
 };

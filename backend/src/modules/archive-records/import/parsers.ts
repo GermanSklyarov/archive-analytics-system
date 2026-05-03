@@ -14,6 +14,13 @@ export function parseDate(input: unknown): Date {
   }
 
   if (typeof input === 'string') {
+    const ruDateMatch = input.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+
+    if (ruDateMatch) {
+      const [, day, month, year] = ruDateMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+
     const date = new Date(input);
     return isNaN(date.getTime()) ? new Date() : date;
   }

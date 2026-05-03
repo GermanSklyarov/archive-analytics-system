@@ -37,6 +37,11 @@ export type ColumnMapping = {
   manualUnit?: string;
 };
 
+export type WideModeInfo = {
+  enabled: boolean;
+  valueColumns: string[];
+};
+
 export type RequiredColumnMapping = {
   value: string;
   category: string;
@@ -45,6 +50,8 @@ export type RequiredColumnMapping = {
 
 export type PreviewImportResponse = {
   total: number;
+  generated?: number;
+  mode?: 'single' | 'wide';
   preview: RawPreviewRow[];
   columns: string[];
   mapping: ColumnMapping;

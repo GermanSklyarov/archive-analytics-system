@@ -123,7 +123,10 @@ export class PreviewWithMappingResponseDto {
   @ApiProperty({ example: 5 })
   invalid: number;
 
-  @ApiProperty({ type: [String], example: ['Row 4: category and value are required'] })
+  @ApiProperty({
+    type: [String],
+    example: ['Row 4: category and value are required'],
+  })
   errors: string[];
 
   @ApiProperty({ type: [ParsedPreviewRowDto] })
@@ -162,6 +165,9 @@ export class MetaOptionDto {
 }
 
 export class ArchiveMetaResponseDto {
+  @ApiProperty({ type: [MetaOptionDto] })
+  categories: MetaOptionDto[];
+
   @ApiProperty({ type: [MetaOptionDto] })
   tags: MetaOptionDto[];
 

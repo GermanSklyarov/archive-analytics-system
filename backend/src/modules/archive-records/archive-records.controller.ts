@@ -83,7 +83,9 @@ export class ArchiveRecordsController {
     );
   }
 
-  @ApiOperation({ summary: 'Показать сырой предпросмотр файла и автоопределенный маппинг' })
+  @ApiOperation({
+    summary: 'Показать сырой предпросмотр файла и автоопределенный маппинг',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -101,7 +103,9 @@ export class ArchiveRecordsController {
     return this.archiveRecordsService.previewImport(file);
   }
 
-  @ApiOperation({ summary: 'Показать предпросмотр после ручного маппинга колонок' })
+  @ApiOperation({
+    summary: 'Показать предпросмотр после ручного маппинга колонок',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -140,7 +144,7 @@ export class ArchiveRecordsController {
   @ApiOkResponse({ type: ArchiveMetaResponseDto })
   @Get('meta')
   getMeta(@Req() req: Request & { user: { id: number } }) {
-    return this.archiveRecordsService.getMeta(req.user?.id ?? 1);
+    return this.archiveRecordsService.getMeta(req.user?.id);
   }
 
   @ApiOperation({ summary: 'Получить архивную запись по идентификатору' })

@@ -2,6 +2,7 @@ import {
   Autocomplete,
   Box,
   FormControl,
+  FormHelperText,
   InputLabel,
   MenuItem,
   Select,
@@ -29,33 +30,77 @@ export function MappingForm({ columns, mapping, meta, onChange }: Props) {
         Map columns
       </Typography>
 
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        If you leave <strong>value</strong> empty, the system will switch to
+        wide-table mode and convert every numeric column into a separate
+        category.
+      </Typography>
+
       <Stack direction="row" useFlexGap spacing={2} flexWrap="wrap">
-        {["value", "category", "created_at"].map((field) => (
-          <FormControl key={field} size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>{field}</InputLabel>
-            <Select
-              value={mapping[field as keyof ColumnMapping]}
-              label={field}
-              onChange={(e) =>
-                update({ [field]: e.target.value } as Partial<ColumnMapping>)
-              }
-            >
-              {columns.map((col) => (
-                <MenuItem key={col} value={col}>
-                  {col}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        ))}
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>value</InputLabel>
+          <Select
+            value={mapping.value ?? ""}
+            label="value"
+            onChange={(e) => update({ value: e.target.value || undefined })}
+          >
+            <MenuItem value="">Auto from numeric columns</MenuItem>
+            {columns.map((col) => (
+              <MenuItem key={col} value={col}>
+                {col}
+              </MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>Leave empty for wide imports</FormHelperText>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>category</InputLabel>
+          <Select
+            value={mapping.category ?? ""}
+            label="category"
+            onChange={(e) =>
+              update({ category: e.target.value || undefined })
+            }
+          >
+            <MenuItem value="">Auto</MenuItem>
+            {columns.map((col) => (
+              <MenuItem key={col} value={col}>
+                {col}
+              </MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>
+            Auto uses the value column name or metric header
+          </FormHelperText>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>created_at</InputLabel>
+          <Select
+            value={mapping.created_at ?? ""}
+            label="created_at"
+            onChange={(e) =>
+              update({ created_at: e.target.value || undefined })
+            }
+          >
+            <MenuItem value="">Use current date</MenuItem>
+            {columns.map((col) => (
+              <MenuItem key={col} value={col}>
+                {col}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>tag</InputLabel>
           <Select
-            value={mapping.tag}
+            value={mapping.tag ?? ""}
             label="tag"
             onChange={(e) => update({ tag: e.target.value })}
           >
+            <MenuItem value="">Auto</MenuItem>
             <MenuItem value="manual">Manual</MenuItem>
             {columns.map((col) => (
               <MenuItem key={col} value={col}>
@@ -68,10 +113,11 @@ export function MappingForm({ columns, mapping, meta, onChange }: Props) {
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>unit</InputLabel>
           <Select
-            value={mapping.unit}
+            value={mapping.unit ?? ""}
             label="unit"
             onChange={(e) => update({ unit: e.target.value })}
           >
+            <MenuItem value="">Auto</MenuItem>
             <MenuItem value="manual">Manual</MenuItem>
             {columns.map((col) => (
               <MenuItem key={col} value={col}>

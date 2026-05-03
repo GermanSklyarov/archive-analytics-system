@@ -1,6 +1,7 @@
 export type PreviewRecord = {
   category: string;
   value: number;
+  unit?: string;
   userId?: number;
   created_at: string;
   metadata?: Record<string, unknown>;
@@ -9,6 +10,7 @@ export type PreviewRecord = {
 export type MappedPreviewRecord = {
   category?: string;
   value?: number;
+  unit?: string;
   userId?: number;
   created_at?: string;
   metadata?: Record<string, unknown>;
@@ -30,6 +32,8 @@ export type MappedPreviewRow = {
 
 export type PreviewResponse = {
   total: number;
+  generated?: number;
+  mode?: "single" | "wide";
   preview: RawPreviewRow[];
   columns: string[];
   mapping: ColumnMapping;
@@ -37,6 +41,8 @@ export type PreviewResponse = {
 
 export type PreviewWithMappingResponse = {
   total: number;
+  generated?: number;
+  mode?: "single" | "wide";
   valid: number;
   invalid: number;
   errors: string[];
@@ -45,6 +51,8 @@ export type PreviewWithMappingResponse = {
 
 export type ImportResponse = {
   total: number;
+  generated?: number;
+  mode?: "single" | "wide";
   parsed: number;
   valid: number;
   inserted: number;

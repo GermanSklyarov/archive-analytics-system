@@ -22,6 +22,7 @@ export type DashboardFilters = {
   dateFrom?: string;
   dateTo?: string;
   userId?: number;
+  category?: string;
   tag?: string;
   unit?: string;
 };
